@@ -12,6 +12,17 @@
         }
       }
     },
+    "Could not encode response" : {
+      "comment" : "Error description",
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не удалось закодировать ответ"
+          }
+        }
+      }
+    },
     "courier" : {
       "comment" : "Components.Schemas.TaxiClass",
       "localizations" : {

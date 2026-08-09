@@ -6,44 +6,127 @@
 //
 
 import Foundation
+import OpenAPIRuntime
 
-// TODO: Implement using `JSONEncoder.prettyPrinted`.
+// MARK: - Shared renderings
+
+/// Every documented error response in this API carries the same `{code, message}` body
+/// behind a throwing `body.json`, so one helper serves every error case of every operation.
+private func message(of response: Components.Schemas.ErrorResponse?) -> String {
+    response?.message ?? String(localized: "Unknown error", bundle: #bundle, comment: "Error description")
+}
+
+/// An `.undocumented` response means `openapi.yaml` is wrong — see the `SpecOwnership`
+/// article — so show the status and the payload rather than a generic failure.
+private func undocumentedDescription(statusCode: Int, payload: UndocumentedPayload) -> String {
+    String(
+        localized: "Undocumented response: status code \(statusCode).\nPayload: \(String(describing: payload))",
+        bundle: #bundle,
+        comment: "Error description"
+    )
+}
+
+/// A 2xx whose body was not the JSON the document promised.
+private var undecodedJSON: String {
+    String(localized: "Undecoded JSON", bundle: #bundle, comment: "Error description")
+}
+
+// MARK: - Operations.CalculateOffers.Output + CustomStringConvertible
+
 extension Operations.CalculateOffers.Output: CustomStringConvertible {
     public var description: String {
         switch self {
-        case .unauthorized(let error): (try? error.body.json.message) ?? String(localized: "Unknown error", bundle: #bundle, comment: "Error description")
-        case .badRequest(let error): (try? error.body.json.message) ?? String(localized: "Unknown error", bundle: #bundle, comment: "Error description")
-        case .internalServerError(let error): (try? error.body.json.message) ?? String(localized: "Unknown error", bundle: #bundle, comment: "Error description")
-        case .tooManyRequests(let error): (try? error.body.json.message) ?? String(localized: "Unknown error", bundle: #bundle, comment: "Error description")
-        case .ok(let body): (try? body.body.json.offers.description) ?? String(localized: "Undecoded JSON", bundle: #bundle, comment: "Error description")
-        case .undocumented(statusCode: let statusCode, let payload):  String(localized: "Undocumented response: status code \(statusCode).\nPayload: \(String(describing: payload))", bundle: #bundle, comment: "Error description")
+        case .ok(let response): (try? response.body.json)?.prettyJSON ?? undecodedJSON
+        case .badRequest(let error): message(of: try? error.body.json)
+        case .unauthorized(let error): message(of: try? error.body.json)
+        case .tooManyRequests(let error): message(of: try? error.body.json)
+        case .internalServerError(let error): message(of: try? error.body.json)
+        case .undocumented(let statusCode, let payload): undocumentedDescription(statusCode: statusCode, payload: payload)
         }
     }
 }
 
+// MARK: - Operations.CreateClaim.Output + CustomStringConvertible
+
 extension Operations.CreateClaim.Output: CustomStringConvertible {
     public var description: String {
-        return "\(self)"
+        switch self {
+        case .ok(let response): (try? response.body.json)?.prettyJSON ?? undecodedJSON
+        case .badRequest(let error): message(of: try? error.body.json)
+        case .unauthorized(let error): message(of: try? error.body.json)
+        case .tooManyRequests(let error): message(of: try? error.body.json)
+        case .internalServerError(let error): message(of: try? error.body.json)
+        case .undocumented(let statusCode, let payload): undocumentedDescription(statusCode: statusCode, payload: payload)
+        }
     }
 }
+
+// MARK: - Operations.GetClaimInfo.Output + CustomStringConvertible
 
 extension Operations.GetClaimInfo.Output: CustomStringConvertible {
     public var description: String {
-        return "\(self)"
+        switch self {
+        case .ok(let response): (try? response.body.json)?.prettyJSON ?? undecodedJSON
+        case .badRequest(let error): message(of: try? error.body.json)
+        case .unauthorized(let error): message(of: try? error.body.json)
+        case .notFound(let error): message(of: try? error.body.json)
+        case .tooManyRequests(let error): message(of: try? error.body.json)
+        case .internalServerError(let error): message(of: try? error.body.json)
+        case .undocumented(let statusCode, let payload): undocumentedDescription(statusCode: statusCode, payload: payload)
+        }
     }
 }
+
+// MARK: - Operations.AcceptClaim.Output + CustomStringConvertible
 
 extension Operations.AcceptClaim.Output: CustomStringConvertible {
     public var description: String {
-        return "\(self)"
+        switch self {
+        case .ok(let response): (try? response.body.json)?.prettyJSON ?? undecodedJSON
+        case .badRequest(let error): message(of: try? error.body.json)
+        case .unauthorized(let error): message(of: try? error.body.json)
+        case .conflict(let error): message(of: try? error.body.json)
+        case .tooManyRequests(let error): message(of: try? error.body.json)
+        case .internalServerError(let error): message(of: try? error.body.json)
+        case .undocumented(let statusCode, let payload): undocumentedDescription(statusCode: statusCode, payload: payload)
+        }
     }
 }
 
-extension Operations.CancelClaim.Output: CustomStringConvertible {
+// MARK: - Operations.GetClaimCancelInfo.Output + CustomStringConvertible
+
+extension Operations.GetClaimCancelInfo.Output: CustomStringConvertible {
     public var description: String {
-        return "\(self)"
+        switch self {
+        case .ok(let response): (try? response.body.json)?.prettyJSON ?? undecodedJSON
+        case .badRequest(let error): message(of: try? error.body.json)
+        case .unauthorized(let error): message(of: try? error.body.json)
+        case .notFound(let error): message(of: try? error.body.json)
+        case .conflict(let error): message(of: try? error.body.json)
+        case .tooManyRequests(let error): message(of: try? error.body.json)
+        case .internalServerError(let error): message(of: try? error.body.json)
+        case .undocumented(let statusCode, let payload): undocumentedDescription(statusCode: statusCode, payload: payload)
+        }
     }
 }
+
+// MARK: - Operations.CancelClaim.Output + CustomStringConvertible
+
+extension Operations.CancelClaim.Output: CustomStringConvertible {
+    public var description: String {
+        switch self {
+        case .ok(let response): (try? response.body.json)?.prettyJSON ?? undecodedJSON
+        case .badRequest(let error): message(of: try? error.body.json)
+        case .unauthorized(let error): message(of: try? error.body.json)
+        case .conflict(let error): message(of: try? error.body.json)
+        case .tooManyRequests(let error): message(of: try? error.body.json)
+        case .internalServerError(let error): message(of: try? error.body.json)
+        case .undocumented(let statusCode, let payload): undocumentedDescription(statusCode: statusCode, payload: payload)
+        }
+    }
+}
+
+// MARK: - Components.Parameters.AcceptLanguage + CustomStringConvertible
 
 extension Components.Parameters.AcceptLanguage: CustomStringConvertible {
     public var description: String {
@@ -54,11 +137,15 @@ extension Components.Parameters.AcceptLanguage: CustomStringConvertible {
     }
 }
 
+// MARK: - Components.Schemas.Currency + CustomStringConvertible
+
 extension Components.Schemas.Currency: CustomStringConvertible {
     public var description: String {
         rawValue
     }
 }
+
+// MARK: - Components.Schemas.TaxiClass + CustomStringConvertible
 
 extension Components.Schemas.TaxiClass: CustomStringConvertible {
     public var description: String {
@@ -71,11 +158,15 @@ extension Components.Schemas.TaxiClass: CustomStringConvertible {
     }
 }
 
+// MARK: - Components.Schemas.CargoType + CustomStringConvertible
+
 extension Components.Schemas.CargoType: CustomStringConvertible {
     public var description: String {
         rawValue
     }
 }
+
+// MARK: - Components.Schemas.CargoOption + CustomStringConvertible
 
 extension Components.Schemas.CargoOption: CustomStringConvertible {
     public var description: String {
@@ -83,11 +174,15 @@ extension Components.Schemas.CargoOption: CustomStringConvertible {
     }
 }
 
+// MARK: - Components.Schemas.PointType + CustomStringConvertible
+
 extension Components.Schemas.PointType: CustomStringConvertible {
     public var description: String {
         rawValue
     }
 }
+
+// MARK: - Components.Schemas.CancelState + CustomStringConvertible
 
 extension Components.Schemas.CancelState: CustomStringConvertible {
     public var description: String {
