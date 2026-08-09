@@ -1,0 +1,2006 @@
+openapi: 3.1.0
+info:
+  title: "Яндекс Доставка API Экспресс-доставки"
+  description: |
+    API для создания и управления заявками экспресс-доставки через Яндекс Доставку.
+    
+    Основные возможности:
+    - Расчет стоимости доставки
+    - Создание заявок на доставку
+    - Подтверждение и отмена заявок
+    - Отслеживание статусов выполнения
+    
+    Документация: https://yandex.com/support/delivery-profile/ru/api/express/overview
+  version: "2.0"
+  contact:
+    name: "Яндекс Доставка"
+    url: "https://dostavka.yandex.ru"
+  license:
+    name: "Proprietary"
+
+servers:
+  - url: "https://b2b.taxi.yandex.net/b2b/cargo/integration/v2"
+    description: "Производственный сервер"
+
+security:
+  - bearerAuth: []
+
+paths:
+  /offers/calculate:
+    post:
+      operationId: "calculateOffers"
+      summary: "Расчет вариантов доставки"
+      description: |
+        Возвращает доступные варианты доставки для указанного маршрута.
+        
+        Каждый вариант содержит:
+        - Цену доставки
+        - Временной интервал забора посылки
+        - Временной интервал доставки
+        
+        Доступно только для России.
+      parameters:
+        - $ref: '#/components/parameters/AcceptLanguage'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OffersCalculateRequest'
+            examples:
+              basic_request:
+                summary: "Базовый запрос"
+                value:
+                  items:
+                    - quantity: 1
+                      pickup_point: 1
+                      dropoff_point: 2
+                      weight: 2.0
+                      size:
+                        length: 0.1
+                        width: 0.2
+                        height: 0.3
+                  route_points:
+                    - id: 1
+                      coordinates: [37.658139, 55.653691]
+                      fullname: "Москва, ул Москворечье, 6"
+                      city: "Москва"
+                      country: "Россия"
+                    - id: 2
+                      coordinates: [37.668176, 55.646068]
+                      fullname: "Москва, Каширское шоссе, 52"
+                      city: "Москва"
+                      country: "Россия"
+                  requirements:
+                    taxi_classes: ["express"]
+      responses:
+        '200':
+          description: "Успешный расчет вариантов доставки"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OffersCalculateResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /claims/create:
+    post:
+      operationId: "createClaim"
+      summary: "Создание заявки на доставку"
+      description: |
+        Создает заявку с указанными параметрами в системе Яндекс Доставки.
+        
+        Отправка запроса не означает, что заказ принят - необходимо дождаться
+        результата оценки через метод claims/info.
+      parameters:
+        - $ref: '#/components/parameters/RequestId'
+          description: |
+            Токен идемпотентности. Допускаются буквы, цифры, другие символы. Чтобы гарантировать уникальность значений, рекомендуем использовать формат uuid и его производные.
+            Если при создании заявки была получена ошибка сервера (код 5xx) или произошел таймаут, используйте то же значение для повторной попытки. (Иначе возможно дублирование заявки, в результате чего за заказом может приехать несколько курьеров).
+            В остальных случаях (при создании новой заявки) следует использовать новое значение request_id.
+            [Подробнее](https://yandex.com/support/delivery-profile/ru/api/express/faq#claim-create)
+        - $ref: '#/components/parameters/AcceptLanguage'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ClaimCreateRequest'
+      responses:
+        '200':
+          description: "Заявка создана"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClaimResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /claims/info:
+    post:
+      operationId: "getClaimInfo"
+      summary: "Получение информации по заявке"
+      description: |
+        Возвращает основную информацию по заявке: статус, стоимость, возможность бесплатной отмены и прочие детали.
+        Для заявок с услугой `В течение дня` возвращается ответ с полем `same_day_data`.
+      parameters:
+        - $ref: '#/components/parameters/ClaimId'
+        - $ref: '#/components/parameters/AcceptLanguage'
+      responses:
+        '200':
+          description: "Информация по заявке"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClaimResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /claims/accept:
+    post:
+      operationId: "acceptClaim"
+      summary: "Подтверждение заявки"
+      description: |
+        Подтверждает заявку после успешной оценки. После подтверждения
+        заявка перейдет в статус 'accepted' и запустится поиск исполнителя.
+        
+        Оффер действителен 10 минут после получения статуса 'ready_for_approval'.
+        По истечении этого времени, при попытке подтверждения заказ перейдет в статус `failed`.
+      parameters:
+        - $ref: '#/components/parameters/ClaimId'
+        - $ref: '#/components/parameters/AcceptLanguage'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ClaimAcceptRequest'
+      responses:
+        '200':
+          description: "Заявка подтверждена"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClaimAcceptResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /claims/cancel-info:
+    post:
+      operationId: "getClaimCancelInfo"
+      summary: Условия отмены
+      description: |
+        Метод возвращает информацию о возможности отмены.
+        Используйте этот метод для получения информации по заявке, созданной через [claims/create](https://yandex.com/support/delivery-profile/ru/api/express/openapi/IntegrationV2ClaimsCreate).
+      parameters:
+        - $ref: '#/components/parameters/ClaimId'
+        - $ref: '#/components/parameters/AcceptLanguage'
+      responses:
+        '200':
+          description: "Информация по отмене"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClaimCancelInfoResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+
+  /claims/cancel:
+    post:
+      operationId: "cancelClaim"
+      summary: Отмена заявки
+      description: |
+        Метод отменяет подтвержденную заявку. Отменить заявку с использованием этого метода можно до передачи товара курьеру. Далее отмена заказа возможна только через службу поддержки.
+        Отмена заявки может быть платной и бесплатной. Бесплатная отмена доступна до прибытия курьера на точку отправления, платная отмена доступна до начала движения по получению груза курьером.
+        Чтобы узнать тип отмены, используйте операцию получения информации по заявке [claims/cancel-info](https://yandex.com/support/delivery-profile/ru/api/express/openapi/IntegrationV2ClaimsCancelInfo) (поле `cancel_state`).
+        В случае бесплатной отмены заявка перейдет в статус `cancelled``, в случае платной отмены - в статус `cancelled_with_payment`.
+      parameters:
+        - $ref: '#/components/parameters/ClaimId'
+        - $ref: '#/components/parameters/AcceptLanguage'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ClaimCancelRequest'
+      responses:
+        '200':
+          description: "Заявка отменена"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClaimCancelResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      description: "OAuth токен из личного кабинета Яндекс Доставки"
+
+  parameters:
+    # Maually checked
+    RequestId:
+      name: request_id
+      in: query
+      required: true
+      description: |
+        Токен идемпотентности. Уникальный идентификатор запроса.
+        
+        Рекомендуется использовать UUID формат для гарантии уникальности.
+        При повторном использовании того же request_id будет возвращена
+        информация с ранее созданной заявке.
+      schema:
+        type: string
+        format: uuid
+        minLength: 1
+        maxLength: 128
+        examples: ["550e8400-e29b-41d4-a716-446655440000"]
+
+    # Maually checked
+    ClaimId:
+      name: claim_id
+      in: query
+      required: true
+      description: "ID заявки, полученный при [создании](https://yandex.com/support/delivery-profile/ru/api/express/openapi/IntegrationV2ClaimsCreate)"
+      schema:
+        type: string
+        minLength: 32
+        maxLength: 64
+        examples: ["741cedf82cd464fa6fa16d87155c636"]
+
+    # Maually checked
+    AcceptLanguage:
+      name: Accept-Language
+      in: header
+      required: true
+      description: "Предпочитаемый язык ответа"
+      schema:
+        type: string
+        enum: ["ru", "en"]
+        default: "ru"
+        examples: ["ru", "en"]
+
+  responses:
+    BadRequest:
+      description: "Некорректный запрос"
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            parse_error:
+              summary: "Ошибка парсинга JSON"
+              value:
+                code: "Parse error"
+                message: "Проверьте корректность составленного JSON"
+            unknown_zone:
+              summary: "Неверные координаты"
+              value:
+                code: "unknown_zone"
+                message: "Неверные координаты. Проверьте порядок: [долгота, широта]"
+            invalid_phone:
+              summary: "Неверный формат телефона"
+              value:
+                code: "invalid_phone_must_start_plus_symbol"
+                message: "Неверный формат телефона. Проверьте, что формат номера правильный: +79123456789"
+
+    Unauthorized:
+      description: "Неверный токен авторизации"
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            unauthorized:
+              summary: "Не авторизован"
+              value:
+                code: "unauthorized"
+                message: "Указан неверный токен. Получите правильный токен в личном кабинете"
+
+    Conflict:
+      description: "Конфликт состояния заявки"
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            code: "inappropriate_status"
+            message: "Недопустимое действие. Заявка уже была подтверждена, отменена или действие невозможно"
+
+    NotFound:
+      description: "Заявка не найдена"
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+    TooManyRequests:
+      description: "Превышен лимит запросов"
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+      headers:
+        Retry-After:
+          description: "Время в секундах до следующего разрешенного запроса"
+          schema:
+            type: integer
+
+    InternalServerError:
+      description: "Внутренняя ошибка сервера"
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            code: "Internal server error"
+            message: "Попробуйте еще раз или измените запрос"
+
+  schemas:
+    ErrorResponse:
+      type: object
+      required:
+        - code
+        - message
+      properties:
+        code:
+          type: string
+          description: "Код ошибки"
+          example: "unauthorized"
+        message:
+          type: string
+          description: "Описание ошибки"
+          example: "Указан неверный токен"
+
+    # Maually checked
+    OffersCalculateRequest:
+      type: object
+      required:
+        - route_points
+      properties:
+        route_points:
+          type: array
+          description: "Точки маршрута в порядке посещения А-Б1...БN"
+          items:
+            $ref: '#/components/schemas/RoutePointWithAddress'
+          minItems: 2
+        items:
+          type: array
+          description: "Параметры товаров для доставки"
+          items:
+            $ref: '#/components/schemas/ItemBase'
+          minItems: 1
+        requirements:
+          $ref: '#/components/schemas/OfferRequirements'
+          description: "Требования к доставке"
+
+    # Maually checked
+    OffersCalculateResponse:
+      type: object
+      required:
+        - offers
+      properties:
+        offers:
+          type: array
+          description: "Доступные варианты доставки"
+          items:
+            $ref: '#/components/schemas/CalculatedOffer'
+
+    # Maually checked
+    ClaimCreateRequest:
+      type: object
+      required:
+        - items
+        - route_points
+      properties:
+        items:
+          type: array
+          description: "Товары для доставки"
+          items:
+            $ref: '#/components/schemas/CargoItem'
+          minItems: 1
+        route_points:
+          type: array
+          description: "Точки маршрута с контактной информацией"
+          items:
+            $ref: '#/components/schemas/RoutePointBase'
+          minItems: 2
+          maxItems: 300
+        auto_accept:
+          type: boolean
+          description: |
+            Включить автоматическое подтверждение заявки после создания.
+            Для использования данной опции требуется согласование менеджера.
+        callback_properties:
+          $ref: '#/components/schemas/CallbackProperties'
+          description: "Настройка уведомлений push ahead of polling."
+        client_requirements:
+          $ref: '#/components/schemas/ClientRequirements'
+          description: "Требования от клиента, указанные при создании или редактировании заявки."
+        comment:
+          type: string
+          description: "Комментарий к заказу"
+          maxLength: 7000
+          examples: ["Ресторан"]
+        due:
+          type: string
+          format: date-time
+          description: |
+            Желаемое время прибытия исполнителя на точку А (source).
+            В РФ отложить расчетное время прибытия исполнителя можно:
+            - на 30-240 минут от текущего момента – для тарифа express;
+            - на пять суток от текущего момента – для тарифа cargo.
+            Параметр не совместим с опциями замедления в тарифе express на территории РФ.
+            Если этот параметр не задан, то запустится поиск исполнителя на ближайшее время.
+          examples: ["2020-01-01T00:00:00+00:00"]
+        emergency_contact:
+          $ref: '#/components/schemas/Contact'
+          description: "Информация о контактном лице с номером телефона"
+        offer_payload:
+          type: string
+          description: "Payload, полученный методом [offers/calculate](https://yandex.com/support/delivery-profile/ru/api/express/openapi/IntegrationV2OfferCalculate)"
+          examples: ["asjdijasDKL;ahsdfljhlkjhasF;HS;Ldjf;ljloshf"]
+        optional_return:
+          type: boolean
+          description: |
+            Отключить возврат товаров в случае отмены заказа.
+            Возможные значения:
+             - `true` (курьер оставляет товар себе)
+             - `false` (по умолчанию, требуется вернуть товар)
+          default: false
+        referral_source:
+          type: string
+          description: "Источник заявки (можно передать наименование CMS, из которой создается запрос)"
+          examples: ["bitrix"]
+        # same_day_data:
+        shipping_document:
+          type: string
+          description: "Сопроводительный документ"
+        skip_act:
+          type: boolean
+          description: "Не показывать акт приема-передачи"
+        skip_client_notify:
+          type: boolean
+          description: |
+            Не отправлять отправителю/получателю смс-уведомления, когда к нему направится курьер.
+            Значение по умолчанию: false (отправлять уведомления)   
+          default: false  
+        skip_door_to_door:
+          type: boolean
+          description: |
+            Отключить доставку до двери (выключить опцию "От двери до двери").
+            Возможные значения:
+            true (курьер доставит заказ только на улицу, до подъезда)
+            false (курьер доставит до двери) - значение по умолчанию
+          default: false
+
+    # In progress
+    ClaimResponse:
+      description: "[Ответ](https://yandex.com/support/delivery-profile/ru/api/express/openapi/IntegrationV2ClaimsCreate#200-ok) при успешном [создании заявки](https://yandex.com/support/delivery-profile/ru/api/express/openapi/IntegrationV2ClaimsCreate)."
+      type: object
+      required:
+        - created_ts
+        - id
+        - items
+        - revision
+        - route_points
+        - status
+        - updated_ts
+        - user_request_revision
+        - version
+      properties:
+        created_ts:
+          type: string
+          format: date-time
+          description: "Дата и время создания заявки"
+          examples: ["2020-01-01T00:00:00+00:00"]
+        id:
+          type: string
+          description: Идентификатор(ID) заявки, полученный на этапе создания заявки
+          minLength: 32
+          maxLength: 64
+          examples: ["741cedf82cd464fa6fa16d87155c636"]
+        items:
+          type: array
+          description: |
+            Параметры товаров
+            В документации [CargoItem](https://yandex.com/support/delivery-profile/ru/api/express/openapi/IntegrationV2ClaimsCreate#cargoitem) 
+            или [V2CargoItem](https://yandex.com/support/delivery-profile/ru/api/express/openapi/IntegrationV2ClaimsInfo#v2cargoitem) – один тип на самом деле.
+          items:
+            $ref: '#/components/schemas/CargoItem'
+          minItems: 1
+        revision:
+          type: integer
+          format: int64
+          description: "Ревизия заявки"
+          examples: [1]
+        route_points:
+          type: array
+          description: "Информация по точкам маршрута"
+          items:
+            $ref: '#/components/schemas/RoutePoint'
+            description: В документации `ResponseCargoPoint` или `V2ResponseCargoPoint` но это один и то же тип.
+          minItems: 2
+        status:
+          $ref: '#/components/schemas/ClaimStatus'
+        updated_ts:
+          type: string
+          format: date-time
+          description: "Дата и время последнего обновления заявки"
+          examples: ["2020-01-01T00:00:00+00:00"]
+        user_request_revision:
+          type: string
+          description: "Текущая версия изменений в заявке, переданная пользователем"
+        version:
+          type: integer
+          format: int64
+          description: "Версия заявки"
+          examples: [1]
+        # Необязательные поля
+        callback_properties:
+          $ref: '#/components/schemas/CallbackProperties'
+        client_requirements:
+          $ref: '#/components/schemas/ClientRequirements'
+        comment:
+          type: string
+          description: "Общий комментарий к заказу"
+          maxLength: 7000
+          examples: ["Ресторан"]
+        corp_client_id:
+          type: string
+          description: "Идентификатор корпоративного клиента Яндекс Доставки (из OAuth-токена)"
+          minLength: 32
+          maxLength: 32
+          examples: ["cd8cc018bde34597932855e3cfdce927"]
+        current_point_id:
+          type: integer
+          format: int64
+          description: |
+            Целочисленный идентификатор точки (int64), генерируемый на стороне Яндекс Доставки.
+            Содержится в поле route_points[].id. Применимо к точкам с типом `source`, `destination`, `return`.
+          examples: [372036854775807]
+        due:
+          type: string
+          format: date-time
+          description: |
+            Желаемое время прибытия исполнителя на точку А (source).
+            В РФ отложить расчетное время прибытия исполнителя можно:
+            - на 30-240 минут от текущего момента – для тарифа express;
+            - на пять суток от текущего момента – для тарифа cargo.
+            
+            Параметр не совместим с опциями замедления в тарифе express на территории РФ.
+            Если этот параметр не задан, то запустится поиск исполнителя на ближайшее время.
+          examples: ["2020-01-01T00:00:00+00:00"]
+        emergency_contact:
+          $ref: '#/components/schemas/Contact'
+        error_messages:
+          type: array
+          description: "Список сообщений об ошибках"
+          items:
+            $ref: '#/components/schemas/HumanErrorMessage'
+        eta:
+          type: integer
+          format: int64
+          description: "Расчетное время выполнения заказа в минутах"
+          examples: [10]
+        last_status_change_ts:
+          type: string
+          format: date-time
+          description: "Дата-время последнего изменения статуса."
+          examples: ["2020-01-01T00:00:00+00:00"]
+        matched_cars:
+          type: array
+          description: "Информация о подобранном тарифе"
+          items:
+            $ref: '#/components/schemas/MatchedCar' # Incomplete
+        optional_return:
+          type: boolean
+          description: |
+            Отключить возврат товаров в случае отмены заказа.
+            Возможные значения:
+            - `true` (курьер оставляет товар себе)
+            - `false` (по умолчанию, требуется вернуть товар)
+          default: false
+        performer_info:
+          $ref: '#/components/schemas/PerformerInfo'
+          description: "В документации [CreatedPerformerInfo](https://yandex.com/support/delivery-profile/ru/api/express/openapi/IntegrationV2ClaimsCreate#createdperformerinfo)"
+        pricing:
+          $ref: '#/components/schemas/ClaimPricing'
+        route_id:
+          type: string
+          description: |
+            Идентификатор машрута, в рамках которого доставляется заказ.
+            Если несколько заказов доставляются одним курьером, они будут иметь одинаковый `route_id`.
+            (Актуально только для доставки "В течение дня")
+        same_day_data:
+          $ref: '#/components/schemas/SameDayData'
+          description: "Дополнительная информация для заявок `В течение дня`. Недоступно в России. [SameDayData](https://yandex.com/support/delivery-profile/ru/api/express/openapi/IntegrationV2ClaimsCreate#samedaydata)"
+        shipping_document:
+          type: string
+          description: "Сопроводительные документы"
+        skip_act:
+          type: boolean
+          description: "Не показывать акт приема-передачи"
+          # default: false
+        skip_client_notify:
+          type: boolean
+          description: |
+            Не отправлять отправителю/получателю смс-уведомления, когда к нему направится курьер.
+            Значение по умолчанию: false (отправлять уведомления).
+          default: false
+        skip_door_to_door:
+          type: boolean
+          description: |
+            Отключить доставку до двери (выключить опцию "От двери до двери").
+            Возможные значения:
+            - `true` (курьер доставит заказ только на улицу, до подъезда)
+            - `false`` (курьер доставит до двери) - значение по умолчанию
+          default: false
+        skip_emergency_notify:
+          type: boolean
+          description: |
+            Не отправлять уведомление запасному контактному лицу
+            Значение по умолчанию: `false` (отправлять уведомления).
+          default: false
+        # taxi_requirements: нет описания в документации
+        warnings:
+          type: array
+          description: "Предупреждения по ходу обработки заявки"
+          items:
+            $ref: '#/components/schemas/ClaimWarning'
+    
+    # Manually checked
+    RoutePoint: # Унифицированная схема для точек маршрута (объединяет ResponseCargoPoint и V2ResponseCargoPoint). См. `RoutePointBase`.
+      description: |
+        Информация по точкам маршрута. В документации:
+        [ResponseCargoPoint](https://yandex.com/support/delivery-profile/ru/api/express/openapi/IntegrationV2ClaimsCreate#responsecargopoint)
+        [V2ResponseCargoPoint](https://yandex.com/support/delivery-profile/ru/api/express/openapi/IntegrationV2ClaimsInfo#v2responsecargopoint)
+      type: object
+      required:
+        - id
+        - address
+        - contact
+        - type
+        - visit_order
+        - visit_status
+        - visited_at
+      properties:
+        id:
+          type: integer
+          format: int64
+          description: "Целочисленный идентификатор точки"
+          examples: [1]
+        address:
+          $ref: '#/components/schemas/Address'
+        contact:
+          $ref: '#/components/schemas/Contact'
+          description: "Информация о контактном лице. В документации [CreatedContactOnPoint](https://yandex.com/support/delivery-profile/ru/api/express/openapi/IntegrationV2ClaimsCreate#createdcontactonpoint)"
+        type:
+          $ref: '#/components/schemas/PointType'
+        visit_order:
+          type: integer
+          description: "Порядок посещения точки (начинается с 1)"
+          minimum: 1
+          examples: [1]
+        visit_status:
+          $ref: '#/components/schemas/PointVisitStatus'
+        visited_at:
+          $ref: '#/components/schemas/PointVisitTime'
+        expected_visit_interval:
+          $ref: '#/components/schemas/TimeInterval'
+          description: "Временной интервал посещения курьером точки согласно выбранному офферу. В документации [ExpectedVisitInterval](https://yandex.com/support/delivery-profile/ru/api/express/openapi/IntegrationV2ClaimsCreate#expectedvisitinterval)."
+        external_order_cost:
+          $ref: '#/components/schemas/ExternalOrderCost'
+        external_order_id:
+          type: string
+          description: Номер заказа из системы клиента. Передается для точки типа destination.
+          examples: ["100"]
+        leave_under_door:
+          type: boolean
+          description: "Оставить посылку у двери"
+          default: false 
+        meet_outside:
+          type: boolean
+          description: "Курьера встретят на улице у подъезда"
+          default: false
+        no_door_call:
+          type: boolean
+          description: "Не звонить в дверь"
+          default: false
+        payment_on_delivery:
+          $ref: '#/components/schemas/PaymentOnDelivery'
+          description: "Параметры оплаты при получении. В документации [CreateResponsePaymentOnDelivery](https://yandex.com/support/delivery-profile/ru/api/express/openapi/IntegrationV2ClaimsCreate#createresponsepaymentondelivery)"
+        pickup_code:
+          type: string
+          description: "Код выдачи посылки курьеру"
+          examples: ["893422"]
+        return_comment:
+          type: string
+          description: "Комментарий к причинам возврата груза"
+          examples: ["string"]
+        return_reasons:
+          type: array
+          description: "Причины возврата груза"
+          items:
+            type: string
+        skip_confirmation:
+          type: boolean
+          description: "Пропускать подтверждение по SMS в данной точке. Значение по умолчанию: false (подтверждение требуется)."
+          default: false
+    
+    # Manually checked
+    HumanErrorMessage:
+      type: object
+      description: "Структурированное сообщение об ошибке с машиночитаемым кодом и человекочитаемым описанием"
+      required:
+        - code
+        - message
+      properties:
+        code:
+          type: string
+          description: "Машиночитаемый код ошибки для программной обработки"
+          examples: ["some_error", "validation_failed", "insufficient_funds", "delivery_unavailable"]
+        message:
+          type: string
+          description: "Человекочитаемое описание ошибки на языке, указанном в заголовке Accept-Language"
+          examples: ["Some error", "Ошибка валидации данных", "Недостаточно средств на счету", "Доставка недоступна в указанную точку"]
+
+    # Manually checked
+    PerformerInfo:
+      type: object
+      description: Информация о курьере, доставляющем заказ. В документации [CreatedPerformerInfo](https://yandex.com/support/delivery-profile/ru/api/express/openapi/IntegrationV2ClaimsCreate#createdperformerinfo).
+      required:
+      - courier_name
+      - legal_name
+      properties:
+        courier_name:
+          type: string
+          description: Имя курьера, доставляющего посылку
+          examples:
+          - Иван Петров
+          - Сергей Иванов
+        legal_name:
+          type: string
+          description: Данные о юридическом лице, которое осуществляет доставку
+          examples:
+          - ИП Петров Иван Иванович
+          - ООО Быстрая доставка
+        car_color:
+          type: string
+          description: Цвет транспортного средства
+          examples:
+          - красный
+          - синий
+          - белый
+          - черный
+        car_color_hex:
+          type: string
+          description: RGB-код цвета транспортного средства в шестнадцатеричном формате
+          pattern: ^#?[0-9A-Fa-f]{6}$
+          examples:
+          - '#FF0000'
+          - '#0000FF'
+          - '#FFFFFF'
+        car_model:
+          type: string
+          description: Модель транспортного средства
+          examples:
+          - Hyundai Solaris
+          - Toyota Camry
+          - Lada Granta
+        car_number:
+          type: string
+          description: Номер транспортного средства
+          examples:
+          - А123БВ777
+          - Е456КУ199
+          - М789НО777
+        transport_type:
+          type: string
+          description: Тип транспорта курьера
+          # enum: Это было бы логично, но в документации нет перечисления.
+          examples:
+          - car
+          - bike
+          - scooter
+          - pedestrian
+          - public_transport
+
+    # Manually checked
+    SameDayData:
+      type: object
+      description: "Дополнительная информация для заявок доставки в течение дня. Услуга недоступна в России. [SameDayData](https://yandex.com/support/delivery-profile/ru/api/express/openapi/IntegrationV2ClaimsCreate#samedaydata)"
+      required:
+      - delivery_interval
+      properties:
+        delivery_interval:
+          $ref: '#/components/schemas/TimeInterval'
+          description: Временной интервал доставки для заявок типа 'В течение дня'
+
+    # Manually checked
+    ClaimWarning:
+      type: object
+      description: "Предупреждение по заявке [ClaimWarning](https://yandex.com/support/delivery-profile/ru/api/express/openapi/IntegrationV2ClaimsCreate#claimwarning) с указанием типа, источника и описания"
+      required:
+      - code
+      - source
+      properties:
+        code:
+          type: string
+          description: |
+            Тип предупреждения:
+            - `not_fit_in_car` - груз может не поместиться в транспортное средство;
+            - `requirement_unavailable` - указанное требование недоступно и было проигнорировано;
+            - `address_not_found` - указанный адрес не найден в Яндекс Картах;
+            - `address_too_far` - координаты из Яндекс Карт по указанному адресу находятся далеко от переданных координат.
+          enum: [not_fit_in_car, requirement_unavailable, address_not_found, address_too_far,] # weight_limit_exceeded, size_limit_exceeded, route_too_long, delivery_time_limit, address_not_found, payment_required]
+          examples: [not_fit_in_car]
+        source:
+          type: string
+          description: |
+            Источник предупреждения
+            - `client_requirements` - предупреждение связано с требованиями клиента;
+            - `route_points` - предупреждение связано с переданными адресами.
+          enum: [client_requirements, route_validation] # cargo_validation, pricing_validation, address_validation, time_validation
+          examples: [client_requirements, cargo_validation]
+        message:
+          type: string
+          description: Описание предупреждения
+          examples:
+          - Груз может не поместиться в выбранный автомобиль
+          - Превышен допустимый вес для данного тарифа
+          - Указанный адрес не найден в системе
+
+    # Manually checked
+    ItemFiscalization: # In doc [ItemFiscalization](https://yandex.com/support/delivery-profile/ru/api/express/openapi/IntegrationV2ClaimsCreate#itemfiscalization)
+      type: object
+      description: "Информация по фискализации (актуально для оплаты при получении)"
+      properties:
+        article:
+          type: string
+          description: |
+            Артикул товара.
+            Должен быть уникальным для товаров, передаваемых из одной точки.
+          examples: ["ART123456", "SKU-789", "20ML50OWKY4FC86"]
+        excise:
+          type: string
+          description: Сумма акциза в валюте заказа в формате десятичного числа
+          pattern: '^-?[0-9]{1,14}(\.[0-9]{0,4})?$'
+          examples: ["12.50", "150.75"]
+        item_type: # TODO: make a dedicated type
+          type: string
+          description: Тип наименования товара для целей фискализации
+          enum:
+          - product
+          - service
+          default: product
+          examples:
+          - product
+          - service
+        mark:
+          $ref: '#/components/schemas/ItemMark'
+          description: |
+            Уникальный код товара (КИЗ). Актуален для РФ.
+            Если товары имеют уникальный код, то на каждый товар необходимо создать отдельный блок
+        supplier_inn:
+          type: string
+          description: ИНН поставщика товара (10 цифр для организаций, 12 цифр для ИП)
+          pattern: ^[0-9]{10}|[0-9]{12}$
+          examples: ["1234567890", "123456789012"]
+        vat_code_str:
+          type: string
+          description: Ставка НДС для товара согласно российскому законодательству
+          enum:
+          - vat_none
+          - vat0
+          - vat10
+          - vat20
+          examples:
+          - vat_none
+          - vat10
+
+    # Manually checked
+    ItemMark: # In doc [ItemMark](https://yandex.com/support/delivery-profile/ru/api/express/openapi/IntegrationV2ClaimsCreate#itemmark)
+      type: object
+      description: |
+        Уникальный код товара КИЗ (контрольно-идентификационный знак) для маркированных товаров. 
+        Если товары имеют уникальный код, то на каждый товар необходимо создать отдельный блок.
+      required:
+      - kind
+      - code
+      properties:
+        kind:
+          type: string
+          description: |
+            Тип маркировки.
+            Возможные значения:
+            - compiled - уже разобранная марка с выделенным GTIN и Serial.
+              Пример:
+              - 444D00000000003741
+            - gs1_data_matrix_base64 - код товара в формате GS1 Data Matrix, подлежащий маркировке средствами идентификации.
+            Максимум 200 символов. Код товара необходимо передавать целиком, закодировав строку в формат base64.
+          enum:
+          - compiled
+          - gs1_data_matrix_base64
+          examples:
+          - compiled
+          - gs1_data_matrix_base64
+        code:
+          type: string
+          description: Код маркировки товара в соответствии с указанным форматом `kind`.
+          examples: [444D00000000003741]
+
+    # Manually checked
+    RequestBuyout: # TODO: переименовать в `Buyout`.
+      type: object
+      description: Информация по выкупу товара курьером в точке отправления (актуально, если для всех точек назначения в маршруте включена оплата при получении).
+      required:
+      - payment_method
+      properties:
+        payment_method:
+          $ref: '#/components/schemas/PaymentMethod'
+
+    # Manually checked
+    PaymentMethod:
+      type: string
+      description: Выбранный тип оплаты. `card` - оплата картой; `cash` - оплата наличными (пока недоступна);
+      enum: ["card", "cash"]
+      examples: ["card", "cash"]
+
+    # Manually checked
+    ExternalOrderCost:
+      type: object
+      description: Стоимость внешнего заказа, привязанного к точке доставки [ExternalOrderCost](https://yandex.com/support/delivery-profile/ru/api/express/openapi/IntegrationV2ClaimsCreate#expectedvisitinterval).
+      required:
+      - value
+      - currency
+      - currency_sign
+      properties:
+        value:
+          type: string
+          description: Стоимость заказа в указанной валюте в формате десятичного числа
+          pattern: ^[0-9]+(\.[0-9]+)?$
+          examples: ["100.0", "2500.50", "15.99"]
+        currency:
+          $ref: '#/components/schemas/Currency'
+        currency_sign:
+          type: string
+          description: Символ валюты для отображения
+          examples: ["₽", "$", "€", "£"]
+    
+    # Manually checked
+    Address:
+      type: object
+      description: "Адрес точки маршрута в системе Яндекс Доставки. В документации [CargoPointAddress](https://yandex.com/support/delivery-profile/ru/api/express/openapi/IntegrationV2ClaimsCreate#cargopointaddress)"
+      required:
+        - fullname
+      properties:
+        fullname:
+          type: string
+          description: "Полный адрес с указанием города, улицы и номера дома"
+          examples: ["Москва, Красная площадь, 1", "Санкт-Петербург, Большая Монетная улица, 1к1А"]
+        building:
+          type: string
+          description: "Строение или корпус"
+          examples: ["1А", "23к1А"]
+        building_name:
+          type: string
+          description: "Название апартаментов или здания"
+          examples: ["БЦ На Большой Монетной", "ТЦ Галерея"]
+        city:
+          type: string
+          description: "Город"
+          examples: ["Москва", "Санкт-Петербург"]
+        comment:
+          type: string
+          description: |
+            Комментарий для курьера. Для точки отправки используйте шаблон с информацией о магазине.
+            Для точек доставки передавайте пожелания получателя.
+          maxLength: 2000
+          examples: 
+            - "Домофон не работает"
+            - "Шлагбаум закрыт, позвонить за 10 минут"
+            - "Не звонить, спит ребенок"
+        coordinates:
+          $ref: '#/components/schemas/Coordinates'
+        country:
+          type: string
+          description: "Страна"
+          examples: ["Россия", "Беларусь"]
+        description:
+          type: string
+          description: "Географическая область, уточняющая краткий адрес до глобального соответствия"
+          examples: ["Санкт-Петербург, Россия", "Москва, Россия"]
+        door_code:
+          type: string
+          description: "Код домофона"
+          examples: ["169", "К1234"]
+        door_code_extra:
+          type: string
+          description: "Дополнительные указания по домофонам"
+          examples: ["код на вход во двор #1234, код от апартаментов #4321"]
+        doorbell_name:
+          type: string
+          description: "Имя на дверном звонке"
+          examples: ["Иванов", "Петров и Ко"]
+        porch:
+          type: string
+          description: "Подъезд (может быть буквенным)"
+          examples: ["1", "А", "3"]
+        sflat:
+          type: string
+          description: "Квартира или номер офиса"
+          examples: ["10", "205А"]
+        sfloor:
+          type: string
+          description: "Этаж"
+          examples: ["1", "2", "цоколь"]
+        shortname:
+          type: string
+          description: "Краткий адрес в пределах города (как на Таксометре)"
+          examples: ["Красная площадь, 1", "Большая Монетная улица, 1к1А"]
+        street:
+          type: string  
+          description: "Улица"
+          examples: ["Красная площадь", "Большая Монетная улица"]
+        uri:
+          type: string
+          format: uri
+          description: "URI геообъекта на картах"
+          examples: ["ymapsbm1://geo?ll=38.805%2C55.084"]
+
+    # Manually checked
+    Coordinates:
+      type: array
+      description: "Координаты [долгота, широта]"
+      items:
+        type: number
+        format: double
+      minItems: 2
+      maxItems: 2
+      example: [37.6173, 55.7558]
+
+    # Manually checked
+    PaymentOnDeliveryBase: # Base (write, request) для `ResponsePaymentOnDelivery`.
+      type: object
+      description: "Параметры оплаты при получении заказа. [CreateRequestPaymentOnDelivery](https://yandex.com/support/delivery-profile/ru/api/express/openapi/IntegrationV2ClaimsCreate#createrequestpaymentondelivery)"
+      required:
+        - payment_method
+      properties:
+        payment_method:
+          $ref: '#/components/schemas/PaymentMethod'
+        customer:
+          $ref: '#/components/schemas/CustomerBase'
+          description: "Информация о клиенте (получателе). В документации [RequestCustomerFiscalization](https://yandex.com/support/delivery-profile/ru/api/express/openapi/IntegrationV2ClaimsCreate#requestcustomerfiscalization)"
+
+    # Manually checked
+    CustomerBase: # См. также `Customer`.
+      type: object
+      description: "Информация о клиенте для оплаты (фискализации) при получени. [RequestCustomerFiscalization](https://yandex.com/support/delivery-profile/ru/api/express/openapi/IntegrationV2ClaimsCreate#requestcustomerfiscalization)"
+      properties:
+        email:
+          type: string
+          format: email
+          description: "Электронная почта пользователя в формате example@yandex.ru. Если не указано, будет использована почта получателя из точки назначения"
+          examples: ["customer@example.com", "client@yandex.ru"]
+        inn:
+          type: string
+          description: "ИНН клиента (10 или 12 цифр)"
+          pattern: '^\d{10}|\d{12}$'
+          examples: ["3664069397", "123456789012"]
+        phone:
+          type: string
+          description: "Номер телефона клиента (только цифры, без +)"
+          pattern: '^\d{11}$'
+          examples: ["79000000000", "79123456789"]
+        # full_name: ?
+
+    # Manually checked    
+    PaymentOnDelivery:
+      type: object
+      description: "Параметры оплаты при получении заказа. В документации [CreateResponsePaymentOnDelivery](https://yandex.com/support/delivery-profile/ru/api/express/openapi/IntegrationV2ClaimsCreate#createresponsepaymentondelivery)."
+      required:
+        - is_paid
+      properties:
+        is_paid:
+          type: boolean
+          description: "Признак оплаты заказа"
+          examples: [true, false]
+        client_order_id:
+          type: string
+          description: "Внешний идентификатор клиентского заказа"
+          examples: ["100", "ORDER-2023-001"]
+        cost: # Не в каждом варианте есть в документации
+          type: string
+          description: Цена
+          pattern: '^-?[0-9]{1,14}(\.[0-9]{0,4})?$'
+          example: "12.50"
+        currency: # Не описано в документации, но по-идее должно быть, раз есть `cost`.
+          $ref: '#/components/schemas/Currency'
+        customer:
+          $ref: '#/components/schemas/Customer'
+          description: "Информация о клиенте (получателе). В документации [CustomerFiscalization](https://yandex.com/support/delivery-profile/ru/api/express/openapi/IntegrationV2ClaimsCreate#customerfiscalization)"
+        invoice_link:
+          type: string
+          format: uri
+          description: "Ссылка на чек или инвойс"
+          examples: ["https://ofd.yandex.ru/vaucher/0005312316002718/9410/2604520024"]
+        payment_method:
+          $ref: '#/components/schemas/PaymentMethod'
+        payment_ref_id:
+          type: string
+          format: uuid
+          description: "Уникальный идентификатор платежа в системе"
+          examples: ["c3073b9d-edd0-49f2-a28d-b7ded8ff9a8b"]
+    
+    # Manually checked
+    Customer: # Похож на `ContactWithPhone`, но это разные сущности.
+      type: object
+      description: "Информация о клиенте для оплаты при получении. В документации [CustomerFiscalization](https://yandex.com/support/delivery-profile/ru/api/express/openapi/IntegrationV2ClaimsCreate#customerfiscalization)"
+      properties:
+        full_name:
+          type: string
+          description: "Для юридического лица — название организации, для ИП и физического лица — ФИО"
+          examples: ["Иван Петров", "Мария Ивановна Сидорова"]
+        inn:
+          type: string
+          description: "ИНН клиента (10 или 12 цифр)"
+          pattern: '^\d{10}|\d{12}$'
+          examples: ["3664069397", "123456789012"]
+        email:
+          type: string
+          format: email
+          description: "Email клиента"
+          examples: ["customer@example.com", "client@yandex.ru"]
+        phone:
+          type: string
+          description: "Номер телефона клиента (только цифры, без +). Если не указано, будет использован телефон получателя из точки назначения"
+          pattern: '^\d{11}$'
+          examples: ["79000000000", "79123456789"]
+
+    # Manually checked
+    ClaimAcceptRequest:
+      type: object
+      required:
+        - version
+      properties:
+        version:
+          type: integer
+          format: int64
+          description: "Версия заявки для подтверждения. Версия изменяется после редактирования заявки."
+          example: 1
+
+    # Manually checked
+    ClaimAcceptResponse:
+      type: object
+      required:
+        - id
+        - skip_client_notify
+        - status
+        - user_request_revision
+        - version
+      properties:
+        id:
+          type: string
+          description: "Идентификатор (тот же самый, что `claim_id`) заявки, полученный на этапе создания заявки."
+          minLength: 32
+          maxLength: 64
+          examples: [741cedf82cd464fa6fa16d87155c636]
+        skip_client_notify:
+          type: boolean
+          description: "Не уведомлять клиента"
+        status:
+          $ref: '#/components/schemas/ClaimStatus'
+        user_request_revision:
+          type: string
+          description: Текущая версия изменений в заявке, переданная пользователем
+        version:
+          type: integer
+          format: int64
+          description: Версия заявки из запроса
+
+    # Manually checked
+    ClaimCancelInfoResponse:
+      type: object
+      description: "[ClaimCancelInfoResponse](https://yandex.com/support/delivery-profile/ru/api/express/openapi/IntegrationV2ClaimsCancelInfo#body1)"
+      required:
+        - cancel_state
+      properties:
+        cancel_state:
+          $ref: '#/components/schemas/CancelInfoCancelState'
+        currency:
+          $ref: '#/components/schemas/Currency'
+        price:
+          type: string
+          description: "Стоимость доставки (с НДС)"
+          pattern: '^-?[0-9]{1,14}(\.[0-9]{0,4})?$'
+          examples: ["807.6"]
+        price_with_vat:
+          type: string
+          description: "Стоимость доставки (с НДС)"
+          pattern: '^-?[0-9]{1,14}(\.[0-9]{0,4})?$'
+          examples: ["807.6"]
+
+    # Manually checked
+    CancelInfoCancelState:
+      type: string
+      description: |
+        Тип отмены: бесплатная, платная или невозможная. [CancelInfoCancelState](https://yandex.com/support/delivery-profile/ru/api/express/openapi/IntegrationV2ClaimsCancelInfo#cancelinfocancelstate)
+        Не путать с [CancelState](https://yandex.com/support/delivery-profile/ru/api/express/openapi/IntegrationV2ClaimsCancel#cancelstate)
+      enum: [free, paid, unavailable]
+      examples: [free]
+
+    # Manually checked
+    ClaimCancelRequest:
+      type: object
+      description: "[ClaimCancelRequest](https://yandex.com/support/delivery-profile/ru/api/express/openapi/IntegrationV2ClaimsCancel#body)"
+      required:
+        - cancel_state
+        - version
+      properties:
+        version:
+          type: integer
+          format: int64
+          description: Версия отменяемой заявки
+        cancel_state:
+          $ref: '#/components/schemas/CancelState'
+
+    # Manually checked
+    CancelState:
+      type: string
+      description: "Тип отмены: бесплатная или платная. [CancelState](https://yandex.com/support/delivery-profile/ru/api/express/openapi/IntegrationV2ClaimsCancel#cancelstate)"
+      enum: ["free", "paid"]
+
+    # Manually checked
+    ClaimCancelResponse:
+      type: object
+      description: "[ClaimCancelResponse](https://yandex.com/support/delivery-profile/ru/api/express/openapi/IntegrationV2ClaimsCancel#body1)"
+      required:
+        - id
+        - skip_client_notify
+        - status
+        - version
+      properties:
+        id:
+          type: string
+          description: Идентификатор (ID) заявки, полученный на этапе создания заявки
+        skip_client_notify:
+          type: boolean
+        status:
+          $ref: '#/components/schemas/ClaimStatus'
+        version:
+          type: integer
+          format: int64
+          description: "Версия заявки из запроса "
+        user_request_revision:
+          type: string
+          description: Текущая версия изменений в заявке, переданная пользователем
+
+    # Manually checked
+    RoutePointWithAddress:
+    # TODO: В следующей версии API заменить на `RoutePointBase`
+      description: |
+        Baze? In the doc [RoutePointWithAddress](https://yandex.com/support/delivery-profile/ru/api/express/openapi/IntegrationV2OfferCalculate#routepointwithaddress)
+        See also: [CargoPointAddress](https://yandex.com/support/delivery-profile/ru/api/express/openapi/IntegrationV2ClaimsCreate#cargopointaddress)
+      allOf:
+        - type: object
+          required:
+            - id
+          properties:
+            id:
+              type: integer
+              format: int64
+              description: "Числовой ID точки"
+              example: 1
+        - $ref: '#/components/schemas/Address'
+
+    # Maunally checked
+    ItemBase:
+      type: object
+      description: "Базовые Параметры товаров [Item](https://yandex.com/support/delivery-profile/ru/api/express/openapi/IntegrationV2OfferCalculate#item)"
+      required:
+        - quantity
+      properties:
+        quantity:
+          type: integer
+          description: "Количество единиц товара"
+          minimum: 1
+          example: 1
+        pickup_point:
+          type: integer
+          format: int64
+          description: |
+            Идентификатор точки (int64), откуда нужно забрать товар.
+            Может быть любым числом. Должен соответствовать значению route_points[].id у точки отправки.
+            Параметр обязательный, если в заказе несколько точек доставки.
+          example: 1
+        dropoff_point:
+          type: integer
+          format: int64
+          description: |
+            Идентификатор точки (int64), куда нужно доставить товар.
+            Может быть любым числом. Должен соответствовать значению route_points[].id у точки назначения.
+            Параметр обязательный, если в заказе несколько точек доставки.
+          example: 2
+        size:
+          $ref: '#/components/schemas/ItemSize'
+        weight:
+          type: number
+          format: double
+          description: "Вес товара в килограммах"
+          minimum: 0
+          example: 2.5
+
+    # Manually checked
+    Currency:
+      type: string
+      description: Трехбуквенный код валюты в формате ISO 4217
+      enum: ["RUB", "USD", "EUR"]
+      pattern: ^[A-Z]{3}$
+      minLength: 3
+      maxLength: 3
+      examples: ["RUB", "USD", "EUR"]
+
+    # Manually checked
+    # TODO: Rebuild to include `ItemBase`.
+    CargoItem: # Возможно, более подходящее наименование `ClaimCargoItem` или `ClaimItem`.
+      description: "В документации [V2CargoItem](https://yandex.com/support/delivery-profile/ru/api/express/openapi/IntegrationV2ClaimsInfo#v2cargoitem)"
+      type: object
+      required:
+        - cost_currency
+        - cost_value
+        - pickup_point
+        - dropoff_point
+        - quantity
+        - title
+      properties:
+        # TODO: unite `cost_currency` and `cost_value` into dedicated type `Money`.
+        cost_currency:
+          $ref: '#/components/schemas/Currency'
+        cost_value:
+          type: string
+          description: |
+            Цена за единицу товара в валюте `cost_currency` в формате строки.
+            Для страхования стоимости передайте фактическую цену груза.
+          pattern: '^[0-9]+(\.[0-9]{1,2})?$'
+          example: "2.00"
+        pickup_point:
+          type: integer
+          format: int64
+          description: |
+            Идентификатор точки (int64), откуда нужно забрать товар. Отличается от идентификатора в заявке.
+            Может быть любым числом. Должен соответствовать значению `route_points[].point_id` у точки отправки.
+          example: 1
+        quantity:
+          type: integer
+          description: "Количество единиц товара"
+          minimum: 1
+          example: 1
+        title:
+          type: string
+          description: "Наименование единицы товара"
+          example: "Смартфон"
+        dropoff_point:
+          type: integer
+          format: int64
+          description: |
+            Идентификатор точки (int64), куда нужно доставить товар (отличается от идентификатора в заявке).
+            Может быть любым числом. Должен соответствовать значению `route_points[].point_id` у точки назначения
+          example: 2
+        extra_id:
+          type: string
+          description: |
+            Краткий внешний ID товара товара (номер заказа в рамках заявки, как правило идентичен `external_order_id`)
+          maxLength: 512
+          example: "БП-208"
+        fiscalization:
+          $ref: '#/components/schemas/ItemFiscalization'
+        size:
+          $ref: '#/components/schemas/ItemSize'
+        weight: # TODO: Unify with one `Weight` type.
+          type: number
+          format: double
+          description: |
+            Вес единицы товара в кг. В поле следует передавать актуальные значения.
+            Если вес не был передан, заказ оформляется с учетом максимально допустимых габаритов для выбранного тарифа.
+            Если фактические характеристики отправления превысят допустимые, курьер вправе отказаться от выполнения такого заказа на месте.
+            В этом случае будет удержана стоимость подачи.
+          minimum: 0
+          maximum: 500000
+          example: 0.5
+
+    # Manually checked
+    RoutePointBase: # (Request)
+      description: |
+        Точка маршрута при создании заяки. В документации [RequestPoint](https://yandex.com/support/delivery-profile/ru/api/express/openapi/IntegrationV2ClaimsCreate#requestpoint)
+        База (write) относительно `RoutePoint` (в документации `ResponseCargoPoint`).
+      type: object
+      required:
+        - address
+        - contact
+        - point_id
+        - type
+        - visit_order
+      properties:
+        address:
+          $ref: '#/components/schemas/Address' 
+          description: "В документации [CargoPointAddress](https://yandex.com/support/delivery-profile/ru/api/express/openapi/IntegrationV2ClaimsCreate#cargopointaddress)"
+        contact:
+          $ref: '#/components/schemas/Contact'
+          description: "[CreatedContactOnPoint](https://yandex.com/support/delivery-profile/ru/api/express/openapi/IntegrationV2ClaimsCreate#createdcontactonpoint)"
+        point_id:
+          type: integer
+          format: int64
+          description: "Целочисленный идентификатор точки (int64), уникальна в рамках создания заявки"
+          examples: [6987]
+        type:
+          $ref: '#/components/schemas/PointType'
+          description: "[PointType](https://yandex.com/support/delivery-profile/ru/api/express/openapi/IntegrationV2ClaimsCreate#pointtype)"
+        visit_order:
+          type: integer
+          description: "Порядок посещения (начиная с 1)"
+          minimum: 1
+          examples: [1]
+        buyout: 
+          $ref: '#/components/schemas/RequestBuyout'
+          description: "[RequestBuyout](https://yandex.com/support/delivery-profile/ru/api/express/openapi/IntegrationV2ClaimsCreate#requestbuyout)"
+        external_order_cost:
+          $ref: '#/components/schemas/ExternalOrderCost'
+          description: |
+            Type: [ExternalOrderCost](https://yandex.com/support/delivery-profile/ru/api/express/openapi/IntegrationV2ClaimsCreate#externalordercost)
+            Стоимость внешнего заказа, привязанного к точке
+        external_order_id:
+          type: string
+          description: "Номер заказа из системы клиента. Передается для точки с типом `destination`."
+          maxLength: 512
+          examples: ["100"]
+        leave_under_door:
+          type: boolean
+          description: "Оставить посылку у двери"
+          default: false
+        meet_outside:
+          type: boolean
+          description: "Курьера встретят на улице у подъезда"
+          default: false
+        no_door_call:
+          type: boolean
+          description: "Не звонить в дверь"
+          default: false
+        payment_on_delivery:
+          $ref: '#/components/schemas/PaymentOnDeliveryBase'
+          description: Информация по оплате при получении (актуально для оплаты при получении). В документации [CreateRequestPaymentOnDelivery](https://yandex.com/support/delivery-profile/ru/api/express/openapi/IntegrationV2ClaimsCreate#createrequestpaymentondelivery).
+        pickup_code:
+          type: string
+          description: |
+            Код выдачи посылки курьеру.
+            Курьеру потребуется ввести этот код, чтобы подтвердить, что он забрал посылку.
+            Для этого необходимо, чтобы ваши сотрудники на точке выдачи имели возможность назвать этот код курьеру.
+            Актуально для точки с типом 'source'.
+            Формат кода: 6 цифр
+            Код выдачи товара (ПВЗ)
+          pattern: ^[0-9]{6}$
+          examples: ["893422"]
+        sshould_notify_on_order_readiness:
+          type: boolean
+          description: |
+            Укажите этот параметр равным `true`, чтобы использовать метод [Готовность заказа](https://yandex.com/support/delivery-profile/ru/api/express/openapi/IntegrationV2ClaimsSetPointReady) к выдаче для уведомления курьера о готовности заказа.
+            Доступно только для точки отправления
+          default: false
+        skip_confirmation:
+          type: boolean
+          description: |
+            Пропускать подтверждение по смс в данной точке.
+            Значение по умолчанию: `false` (подтверждение требуется).
+          default: false
+
+    # Manually checked
+    Contact: # Похож на `CustomerBase`
+      description: "В документации [CreatedContactOnPoint](https://yandex.com/support/delivery-profile/ru/api/express/openapi/IntegrationV2ClaimsCreate#createdcontactonpoint)"
+      type: object
+      required:
+        - name
+        - phone
+      properties:
+        name:
+          type: string
+          description: "Имя контактного лица"
+          examples: ["Иван Петров", "Мария Иванова", "Анна Сидорова"]
+        phone:
+          type: string
+          description: "Телефон контактного лица."
+          pattern: '^\+[1-9]\d{1,14}$'
+          examples: ["+79123456789"] # TODO: уточнить с "+" или без или неважно.
+        email:
+          type: string
+          format: email
+          description: "Email (обязательно для точек отправки и возврата)"
+          examples:  ["example@yandex.ru", "contact@company.com"]
+        phone_additional_code:
+          type: string
+          description: "Добавочный номер для звонка курьера"
+          examples: ["602", "17", "500"]
+
+    # Maually checked
+    OfferRequirements:
+      type: object
+      properties:
+        cargo_loaders:
+          type: integer
+          description: |
+            Число грузчиков для грузового тарифа.
+            Точный список возможных значений для конкретной геоточки уточните с помощью метода получения тарифов `tariffs`.
+          minimum: 0
+          maximum: 4
+          default: 0
+          example: 0
+        cargo_options:
+          type: array
+          items:
+            $ref: '#/components/schemas/CargoOption'
+          description: |
+            Список дополнительных опций тарифа.
+            Точный список возможных значений для конкретной геоточки уточните с помощью метода получения тарифов `tariffs`.
+        cargo_type:
+            $ref: '#/components/schemas/CargoType'
+            description: |
+              Тип (размер) кузова для грузового тарифа.
+              Точный список возможных значений для конкретной геоточки уточните с помощью метода получения тарифов `tariffs`.
+        due:
+          type: string
+          format: date-time
+          description: |
+            Желаемое время прибытия исполнителя на точку А (source).
+            В РФ отложить расчетное время прибытия исполнителя можно:
+            - на 30-240 минут от текущего момента – для тарифа express;
+            - на пять суток от текущего момента – для тарифа cargo.
+            Параметр не совместим с опциями замедления в тарифе express на территории РФ.
+            Если этот параметр не задан, то запустится поиск исполнителя на ближайшее время.
+          examples: ["2020-01-01T00:00:00+00:00"]
+        pro_courier:
+          type: boolean
+          description: |
+            Включить опцию "Профи" для тарифов "Экспресс" и "Курьер".
+            Поиск исполнителя будет происходить только среди опытных курьеров.
+          default: false
+        rental_duration:
+          type: integer
+          description: |
+            Время аренды, которое планирует клиент. Указывается в минутах.
+            Указывайте этот параметр только для почасового тарифа.
+        skip_door_to_door:
+          type: boolean
+          description: "Отключить доставку до двери"
+          default: false
+        taxi_classes:
+          type: array
+          items:
+            $ref: '#/components/schemas/TaxiClass'
+          description: |
+            Класс автомобиля для доставки.
+            Точный список возможных значений для конкретной геоточки уточните с помощью метода получения тарифов `tariffs`.
+
+    # Maually checked
+    ClientRequirements:
+      type: object
+      description: "[Требования от клиента, указанные при создании или редактировании заявки](https://yandex.com/support/delivery-profile/ru/api/express/openapi/IntegrationV2ClaimsCreate#clientrequirements)"
+      required:
+        - taxi_class
+      properties:
+        taxi_class:
+          $ref: '#/components/schemas/TaxiClass'
+          description: "Тариф доставки."
+        cargo_loaders:
+          type: integer
+          description: "Количество грузчиков"
+          minimum: 0
+        cargo_options:
+          type: array
+          description: "Дополнительные опции"
+          items:
+            $ref: '#/components/schemas/CargoOption'
+        cargo_type:
+          $ref: '#/components/schemas/CargoType'
+          description: "Тип (размер) кузова для грузового тарифа."
+        pro_courier:
+          type: boolean
+          description: |
+            Включить опцию "Профи" для тарифов "Экспресс" и "Курьер".
+            Поиск исполнителя будет происходить только среди опытных курьеров."
+          default: false
+        rental_duration:
+          type: integer
+          description: |
+            Время аренды, которое планирует клиент. Указывается в минутах.
+            Указывайте этот параметр только для почасового тарифа
+
+    # Maually checked
+    CalculatedOffer:
+      type: object
+      description: "Варианты доставки [CalculatedOffer](https://yandex.com/support/delivery-profile/ru/api/express/openapi/IntegrationV2OfferCalculate#calculatedoffer)"
+      properties:
+        delivery_interval:
+          $ref: '#/components/schemas/TimeInterval'
+          description: "Временной интервал доставки (по точке B)"
+        payload:
+          type: string
+          description: "ID предложения для создания заявки. Чтобы заказать доставку по выбранному офферу, нужно передать payload в методе claims/create."
+          examples: ["5e2TPP5f7Yqyv19yRZ+QVas4JK+lhwa17ncxA3VCGI8hvnFS+CIySbmfHQlR6vhC2S4XsW+M7TbEV0EQl1/1Z0PO3QQX8KbGb6rtKay"]
+        pickup_interval:
+          $ref: '#/components/schemas/TimeInterval'
+          description: "Временной интервал забора (по точке A)"
+        price:
+          $ref: '#/components/schemas/OfferPrice'
+          description: "Стоимость доставки. В документации `CalculatedOfferPrice`."
+        taxi_class:
+          $ref: '#/components/schemas/TaxiClass'
+          description: "Тарифный класс"
+        description:
+          type: string
+          description: "Описание варианта доставки"
+          examples: ["express_30min_longer"]
+        offer_ttl:
+          type: string
+          format: date-time
+          description: "Время действия предложения"
+          examples: ["2020-01-02T00:00:00+00:00"]
+      required:
+        - delivery_interval
+        - payload
+        - pickup_interval
+        - price
+        - taxi_class
+
+    # Maually checked
+    OfferPrice:
+      type: object
+      description: "[CalculatedOfferPrice](https://yandex.com/support/delivery-profile/ru/api/express/openapi/IntegrationV2OfferCalculate#calculatedofferprice)"
+      properties:
+        currency:
+          $ref: '#/components/schemas/Currency'
+        surge_ratio:
+          type: number
+          format: double
+          description: "Коэффициент роста стоимости заказа (в зависимости от нагрузки на систему)"
+          examples: [1.1]
+        total_price:
+          type: string
+          description: "Цена c учетом коэффициента роста стоимости заказа (без НДС)"
+          pattern: '^-?[0-9]{1,14}(\.[0-9]{0,4})?$'
+          examples: ["673.0"]
+        total_price_with_vat:
+          type: string
+          description: "Цена с учетом коэффициента роста стоимости заказа (с НДС)"
+          pattern: '^-?[0-9]{1,14}(\.[0-9]{0,4})?$'
+          examples: ["807.6"]
+        base_price:
+          type: string
+          description: "Базовая цена доставки"
+          pattern: '^-?[0-9]{1,14}(\.[0-9]{0,4})?$'
+          example: ["611.8"]
+      required:
+        - currency
+        - surge_ratio
+        - total_price
+        - total_price_with_vat
+
+    # Manually checked
+    TimeInterval:
+      type: object
+      description: Временной интервал с началом и окончанием
+      required:
+      - from
+      - to
+      properties:
+        from:
+          type: string
+          format: date-time
+          description: Начало временного интервала в формате ISO 8601
+          examples:
+          - '2020-01-01T07:00:00+00:00'
+        to:
+          type: string
+          format: date-time
+          description: Окончание временного интервала в формате ISO 8601
+          examples:
+          - '2020-01-01T19:00:00+00:00'
+
+    # Manually checked
+    ItemSize: # In doc [CargoItemSizes](https://yandex.com/support/delivery-profile/ru/api/express/openapi/IntegrationV2ClaimsCreate#cargoitemsizes)
+      type: object
+      description: |
+        Габариты товара в метрах. В полях следует передавать актуальные значения.
+        Если габариты не были переданы, заказ оформляется с учетом максимально допустимых габаритов для выбранного тарифа.
+        Если фактические характеристики товара превысят допустимые, курьер вправе отказаться от выполнения такого заказа на месте.
+        В этом случае будет удержана стоимость подачи.
+        
+        Курьер (courier): до 0.80 м × 0.50 м × 0.50 м
+        Экспресс (express): до 1.00 м × 0.60 м × 0.50 м
+        Грузовой (cargo):
+        
+        Маленький кузов: до 1.70 м × 0.96 м × 0.90 м
+        Средний кузов: до 2.60 м × 1.30 м × 1.50 м
+        Большой кузов: до 3.80 м × 1.80 м × 1.80 м
+      required:
+        - length
+        - width
+        - height
+      properties:
+        length:
+          type: number
+          format: double
+          description: "Длина в метрах"
+          minimum: 0
+          maximum: 500
+          example: 0.1
+        width:
+          type: number
+          format: double
+          description: "Ширина в метрах"
+          minimum: 0
+          maximum: 500
+          example: 0.2
+        height:
+          type: number
+          format: double
+          description: "Высота в метрах"
+          minimum: 0
+          maximum: 500
+          example: 0.3
+
+  # Manually checked
+    ClaimPricing:
+      type: object
+      description: "Информация о стоимости заказа. [ClaimPricing](https://yandex.com/support/delivery-profile/ru/api/express/openapi/IntegrationV2ClaimsCreate#claimpricing)."
+      properties:
+        currency:
+          $ref: '#/components/schemas/Currency'
+        currency_rules:
+          $ref: '#/components/schemas/CurrencyRules'
+        final_price:
+          type: string
+          description: "Стоимость доставки"
+          pattern: '^-?[0-9]{1,14}(\.[0-9]{0,4})?$'
+          example: ["400.50"]
+        final_pricing_calc_id:
+          type: string
+          description: Идентификатор расчета стоимости      
+        offer:
+          $ref: '#/components/schemas/TaxiOffer'
+          description: Предложение от Яндекс Доставки (актуально в течение некоторого времени).
+
+    # Manually checked
+    TaxiOffer:
+      type: object
+      description: "Предложение от Яндекс Доставки (актуально в течение некоторого времени). [TaxiOffer](https://yandex.com/support/delivery-profile/ru/api/express/openapi/IntegrationV2ClaimsCreate#taxioffer)"
+      required:
+        - offer_id
+        - price
+      properties:
+        offer_id:
+          type: string
+          description: "ID предложения"
+          examples: ["28ae5f1d72364468be3f5e26cd6a66bf"]
+        price:
+          type: string
+          description: "Цена предложения без НДС"
+        price_with_vat:
+          type: string
+          description: "Цена предложения с НДС"
+        valid_until:
+          type: string
+          format: date-time
+          description: "Время до которого действительно предложение на принятие заявки. Если значения нет, то ограничений по длительности предложения нет"
+
+    # Manually checked
+    CurrencyRules:
+      type: object
+      description: "Правила отображения валюты. [CurrencyRules](https://yandex.com/support/delivery-profile/ru/api/express/openapi/IntegrationV2ClaimsCreate#currencyrules)"
+      required:
+        - code
+        - text
+        - template
+      properties:
+        code:
+          $ref: '#/components/schemas/Currency'
+        text:
+          type: string
+          description: "Сокращенное название валюты"
+          example: "руб."
+        template:
+          type: string
+          description: "Шаблон отображения валюты"
+          example: "$VALUE$ $SIGN$$CURRENCY$"
+        sign:
+          type: string
+          description: "Символ валюты"
+          example: "₽"
+
+    # Incomplete
+    MatchedCar:
+      type: object
+      description: "[MatchedCar](https://yandex.com/support/delivery-profile/ru/api/express/openapi/IntegrationV2ClaimsCreate#matchedcar)"
+      required:
+        - taxi_class
+      properties:
+        taxi_class:
+          $ref: '#/components/schemas/TaxiClass'
+        cargo_type:
+          $ref: '#/components/schemas/CargoType'
+        cargo_loaders:
+          type: integer
+          description: "Количество грузчиков"
+        door_to_door:
+          type: boolean
+          description: "Доставка до двери"
+        pro_courier:
+          type: boolean
+          description: "Опция Pro курьера"
+
+    # Manually checked
+    ClaimStatus:
+      type: string
+      enum: ["new", "estimating", "estimating_failed", "ready_for_approval",
+        "accepted", "performer_lookup", "performer_draft", "performer_found", "performer_not_found", "pickup_arrived",
+        "ready_for_pickup_confirmation", "pickuped", "delivery_arrived", "ready_for_delivery_confirmation", "delivered", "delivered_finish",
+        "returning", "pay_waiting", "return_arrived", "ready_for_return_confirmation",
+        "returned", "returned_finish", "failed", "cancelled",
+        "cancelled_with_payment", "cancelled_by_taxi", "cancelled_with_items_on_hands"]
+      description: |
+        [ClaimStatus](https://yandex.com/support/delivery-profile/ru/api/express/openapi/IntegrationV2ClaimsCreate#claimstatus)
+        Статус заявки в системе (подробнее см. в разделе [Статусная модель](https://yandex.com/support/delivery-profile/ru/api/express/claim-process):
+        - new: Новая заявка
+        - estimating: Идет оценка заявки
+        - ready_for_approval: Заявка готова к подтверждению
+        - accepted: Заявка подтверждена
+        - performer_lookup: Поиск исполнителя
+        - performer_found: Исполнитель найден
+        - pickuped: Груз забран
+        - delivered: Доставлено
+        - cancelled: Отменена
+        - failed: Ошибка выполнения
+
+    # Manually checked
+    TaxiClass:
+      type: string
+      enum: ["courier", "express", "cargo", "sdd_long"] # "sdd_long" здесь быть не должно
+      description: |
+        Класс доставки:
+        - courier: Курьер (до 10 кг)
+        - express: Экспресс (до 20 кг)
+        - cargo: Грузовая (до 300-2000 кг)
+      examples: ["courier", "express", "cargo"]
+
+    # Manually checked
+    CargoType:
+      type: string
+      enum: ["van", "lcv_m", "lcv_l", "lcv_xl"]
+      description: |
+        Тип кузова для грузовой доставки:
+        - van: Маленький кузов (до 300 кг)
+        - lcv_m: Средний кузов (до 700 кг)
+        - lcv_l: Большой кузов (до 1400 кг)
+        - lcv_xl: XL кузов (до 2000 кг)
+      examples: ["van"]
+
+    CargoOption:
+      type: string
+      enum: ["thermobag", "auto_courier"]
+      description: |
+        Дополнительные опции доставки:
+        - thermobag: Термосумка
+        - auto_courier: Только водитель-курьер
+      examples: ["thermobag", "auto_courier"]
+
+    # Manually checked
+    PointType:
+      type: string
+      enum: ["source", "destination", "return"]
+      description: |
+        Тип точки маршрута [PointType](https://yandex.com/support/delivery-profile/ru/api/express/openapi/IntegrationV2ClaimsCreate#pointtype):
+        - `source`: точка отправления, где курьер забирает товар
+        - `destination`: точка назначения,  где курьер передает товар
+        - `return`: точка возврата, (добавляется автоматически и по умолчанию совпадает с точкой отправления, но также можно определить другую точку).
+
+    # Manually checked
+    PointVisitStatus:
+      type: string
+      enum: ["pending", "arrived", "visited", "skipped"]
+      description: |
+        Статус посещения точки [PointVisitStatus](https://yandex.com/support/delivery-profile/ru/api/express/openapi/IntegrationV2ClaimsCreate#pointvisitstatus):
+        - `pending`: точка еще не посещена
+        - `arrived`: курьер прибыл на точку
+        - `visited`: курьер передал/забрал груз на точке
+        - `skipped`: точка пропущена (в случае, если не смог принять товар).
+      examples: ["pending", "arrived", "visited",]
+
+    # Maually checked
+    PointVisitTime:
+      type: object
+      description: "Информация о времени посещения точки [PointVisitTime](https://yandex.com/support/delivery-profile/ru/api/express/openapi/IntegrationV2ClaimsCreate#pointvisittime)."
+      properties:
+        actual:
+          type: string
+          format: date-time
+          description: "Фактическое время посещения. Заполняется только для посещенных точек."
+        expected:
+          type: string
+          format: date-time
+          description: "Расчетное время посещения. Может быть заполнено только для непосещенных точек."
+        expected_waiting_time_sec:
+          type: integer
+          format: int64
+          description: "Расчетное время ожидания в точке (в секундах)."
+
+    # Maually checked
+    CallbackProperties:
+      type: object
+      description: |
+        [Параметры уведомления сервера клиента о смене статуса заявки.](https://yandex.com/support/delivery-profile/ru/api/express/openapi/IntegrationV2ClaimsCreate#callbackproperties)
+        Уведомление представляет собой POST-запрос по указанному url, к которому будут добавлены информация о дате последнего изменения
+        заявки и идентификатора заявки в виде
+        'updated_ts=&claim_id=<id заявки>', то есть url вида
+        'https://example.com/?my_order_id=123&' будет расширен до
+        'https://example.com/?my_order_id=123&updated_ts=...&claim_id=...'.
+        
+        Важно: параметры добавляются конкатенацией к callback_url, то есть url вида
+        'https://example.com' превратится в невалидный 'https://example.comupdated_ts=...&claim_id=...'.
+      required:
+        - callback_url
+      properties:
+        callback_url:
+          type: string
+          description: |
+            URL, который вызывается при смене статусов по заявке.
+            Этот механизм устарел и может быть ненадежен, рекомендуем использовать в связке с [claims/journal](https://yandex.com/support/delivery-profile/ru/api/express/openapi/IntegrationV2ClaimsJournal)
+          pattern: '^https?:.*'
+          examples: ["https://www.example.com/"]
