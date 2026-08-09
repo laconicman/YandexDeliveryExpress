@@ -77,6 +77,15 @@ so in a package the lookup silently fails and the key is returned verbatim. That
 happening throughout `Types+CustomStringConvertible.swift`. `Package.swift` declares the
 String Catalog as a processed resource so `Bundle.module` exists at all.
 
+One measured caveat, because it decides what a test can assert: **SwiftPM's native build
+system does not compile `.xcstrings`.** It copies the catalog into the resource bundle
+verbatim, so under a plain `swift build` / `swift test` the module bundle reports
+`localizations == ["en"]` and every lookup returns the source string. Swift Build — Xcode,
+or `swift build --build-system swiftbuild` — runs `xcstringstool` and produces the expected
+`ru.lproj/Localizable.strings`. The `bundle:` argument is what fixes the bug either way;
+the translations simply do not exist in an artifact the native build system produced.
+Measured against Swift 6.3.3 / Xcode 26.6.
+
 ## Authentication is a middleware, and it does one thing
 
 `AuthMiddleware` sets `Authorization`. It is `package`-scoped rather than `public`: a

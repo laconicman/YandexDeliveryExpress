@@ -1,19 +1,22 @@
 //
-//  Types+CustomStringConvertable.swift
+//  Types+CustomStringConvertible.swift
 //  YandexDeliveryExpressAPI
 //
 //  Created by Paul Buktab on 7/22/25.
 //
+
+import Foundation
+
 // TODO: Implement using `JSONEncoder.prettyPrinted`.
 extension Operations.CalculateOffers.Output: CustomStringConvertible {
     public var description: String {
         switch self {
-        case .unauthorized(let error): (try? error.body.json.message) ?? String(localized: "Unknown error", comment: "Error description")
-        case .badRequest(let error): (try? error.body.json.message) ?? String(localized: "Unknown error", comment: "Error description")
-        case .internalServerError(let error): (try? error.body.json.message) ?? String(localized: "Unknown error", comment: "Error description")
-        case .tooManyRequests(let error): (try? error.body.json.message) ?? String(localized: "Unknown error", comment: "Error description")
-        case .ok(let body): (try? body.body.json.offers.description) ?? String(localized: "Undecoded JSON", comment: "Error description")
-        case .undocumented(statusCode: let statusCode, let payload):  String(localized: "Undocumented response: status code \(statusCode).\nPayload: payload", comment: "Error description")
+        case .unauthorized(let error): (try? error.body.json.message) ?? String(localized: "Unknown error", bundle: #bundle, comment: "Error description")
+        case .badRequest(let error): (try? error.body.json.message) ?? String(localized: "Unknown error", bundle: #bundle, comment: "Error description")
+        case .internalServerError(let error): (try? error.body.json.message) ?? String(localized: "Unknown error", bundle: #bundle, comment: "Error description")
+        case .tooManyRequests(let error): (try? error.body.json.message) ?? String(localized: "Unknown error", bundle: #bundle, comment: "Error description")
+        case .ok(let body): (try? body.body.json.offers.description) ?? String(localized: "Undecoded JSON", bundle: #bundle, comment: "Error description")
+        case .undocumented(statusCode: let statusCode, let payload):  String(localized: "Undocumented response: status code \(statusCode).\nPayload: \(String(describing: payload))", bundle: #bundle, comment: "Error description")
         }
     }
 }
@@ -45,8 +48,8 @@ extension Operations.CancelClaim.Output: CustomStringConvertible {
 extension Components.Parameters.AcceptLanguage: CustomStringConvertible {
     public var description: String {
         switch self {
-        case .ru: String(localized: "Russian", comment: "Components.Parameters.AcceptLanguage")
-        case .en: String(localized: "English", comment: "Components.Parameters.AcceptLanguage")
+        case .ru: String(localized: "Russian", bundle: #bundle, comment: "Components.Parameters.AcceptLanguage")
+        case .en: String(localized: "English", bundle: #bundle, comment: "Components.Parameters.AcceptLanguage")
         }
     }
 }
@@ -60,10 +63,10 @@ extension Components.Schemas.Currency: CustomStringConvertible {
 extension Components.Schemas.TaxiClass: CustomStringConvertible {
     public var description: String {
         switch self {
-        case .cargo:   String(localized: "cargo",   comment: "Components.Schemas.TaxiClass")
-        case .courier: String(localized: "courier", comment: "Components.Schemas.TaxiClass")
-        case .express: String(localized: "express", comment: "Components.Schemas.TaxiClass")
-        case .sddLong: String(localized: "sddLong", comment: "Components.Schemas.TaxiClass")
+        case .cargo:   String(localized: "cargo",   bundle: #bundle, comment: "Components.Schemas.TaxiClass")
+        case .courier: String(localized: "courier", bundle: #bundle, comment: "Components.Schemas.TaxiClass")
+        case .express: String(localized: "express", bundle: #bundle, comment: "Components.Schemas.TaxiClass")
+        case .sddLong: String(localized: "sddLong", bundle: #bundle, comment: "Components.Schemas.TaxiClass")
         }
     }
 }
@@ -89,8 +92,8 @@ extension Components.Schemas.PointType: CustomStringConvertible {
 extension Components.Schemas.CancelState: CustomStringConvertible {
     public var description: String {
         switch self {
-        case .free: String(localized: "Free", comment: "Components.Schemas.CancelState")
-        case .paid: String(localized: "Paid", comment: "Components.Schemas.CancelState")
+        case .free: String(localized: "Free", bundle: #bundle, comment: "Components.Schemas.CancelState")
+        case .paid: String(localized: "Paid", bundle: #bundle, comment: "Components.Schemas.CancelState")
         }
     }
 }

@@ -1,7 +1,127 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
-
+    "cargo" : {
+      "comment" : "Components.Schemas.TaxiClass",
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "грузовой"
+          }
+        }
+      }
+    },
+    "courier" : {
+      "comment" : "Components.Schemas.TaxiClass",
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "курьер"
+          }
+        }
+      }
+    },
+    "English" : {
+      "comment" : "Components.Parameters.AcceptLanguage",
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "английский"
+          }
+        }
+      }
+    },
+    "express" : {
+      "comment" : "Components.Schemas.TaxiClass",
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "экспресс"
+          }
+        }
+      }
+    },
+    "Free" : {
+      "comment" : "Components.Schemas.CancelState",
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "бесплатная"
+          }
+        }
+      }
+    },
+    "Paid" : {
+      "comment" : "Components.Schemas.CancelState",
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "платная"
+          }
+        }
+      }
+    },
+    "Russian" : {
+      "comment" : "Components.Parameters.AcceptLanguage",
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "русский"
+          }
+        }
+      }
+    },
+    "sddLong" : {
+      "comment" : "Components.Schemas.TaxiClass",
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "день в день"
+          }
+        }
+      }
+    },
+    "Undecoded JSON" : {
+      "comment" : "Error description",
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не удалось декодировать JSON"
+          }
+        }
+      }
+    },
+    "Undocumented response: status code %lld.\nPayload: %@" : {
+      "comment" : "Error description",
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Недокументированный ответ: код состояния %lld.\nТело: %@"
+          }
+        }
+      }
+    },
+    "Unknown error" : {
+      "comment" : "Error description",
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Неизвестная ошибка"
+          }
+        }
+      }
+    }
   },
   "version" : "1.0"
 }
