@@ -8,55 +8,34 @@
 import OpenAPIRuntime
 import Foundation
 
+/// Reads the ISO-8601 shapes the Express API emits, which differ in whether they carry
+/// fractional seconds, and writes timestamps without discarding sub-second precision.
+///
+/// Every shape this type is expected to read is pinned by an argument of
+/// `DateTranscoderTests.parsesWireTimestamp`, each cited to where it was observed. A shape
+/// with no argument backing it is not supported here on purpose.
 struct FlexibleISO8601Transcoder: DateTranscoder {
-    private static let gmt = TimeZone(secondsFromGMT: 0)!
-    private static let modernFormatter: Date.ISO8601FormatStyle = {
-        var formatter = Date.ISO8601FormatStyle()
-        formatter.timeZone = gmt
-        return formatter
-            .time(includingFractionalSeconds: true)
-            .timeZone(separator: .colon)
-    }()
-    
-    // Fallback formatters for the wire shapes `Date.ISO8601FormatStyle` rejects.
-    private static let withMicroseconds: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.calendar = Calendar(identifier: .iso8601)
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.timeZone = gmt
-        formatter.dateFormat = "yyyy-MM-dd'T'HH:mm:ss.SSSSSSXXXXX"
-        return formatter
-    }()
-    
-    private static let withoutFractional: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.calendar = Calendar(identifier: .iso8601)
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.timeZone = gmt
-        formatter.dateFormat = "yyyy-MM-dd'T'HH:mm:ssXXXXX"
-        return formatter
-    }()
-    
+    private static let withFractionalSeconds = Date.ISO8601FormatStyle(includingFractionalSeconds: true, timeZone: .gmt)
+    private static let withoutFractionalSeconds = Date.ISO8601FormatStyle(includingFractionalSeconds: false, timeZone: .gmt)
+
     func decode(_ dateString: String) throws -> Date {
-        if let date = try? Self.modernFormatter.parse(dateString) {
+        if let date = try? Self.withFractionalSeconds.parse(dateString) {
             return date
         }
 
-        // Try formatters in order of likelihood
-        if let date = Self.withMicroseconds.date(from: dateString) {
+        if let date = try? Self.withoutFractionalSeconds.parse(dateString) {
             return date
         }
-        
-        if let date = Self.withoutFractional.date(from: dateString) {
-            return date
-        }
-        
+
         throw DecodingError.dataCorrupted(
             .init(codingPath: [], debugDescription: "Unable to parse ISO-8601 date: \(dateString)")
         )
     }
-    
+
+    /// Writes fractional seconds. Omitting them — which this type used to do
+    /// unconditionally — made `decode(encode(date))` lossy for any `Date` carrying
+    /// sub-second precision.
     func encode(_ date: Date) throws -> String {
-        return Self.withoutFractional.string(from: date)
+        Self.withFractionalSeconds.format(date)
     }
 }
