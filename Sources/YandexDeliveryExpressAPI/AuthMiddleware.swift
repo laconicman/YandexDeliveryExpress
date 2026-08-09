@@ -40,15 +40,6 @@ extension AuthMiddleware: ClientMiddleware {
         request.headerFields[.contentType] = "application/json"
 
         request.headerFields[httpFieldName] = value
-//        // !!!: This is temporary solution. Needs optimizing.
-//        let idempotenceKey: String
-//        if let body {
-//            idempotenceKey = operationID + String(body.hashValue)
-//        } else {
-//            idempotenceKey = UUID().uuidString
-//        }
-//        // request.headerFields[.init("Idempotence-Key")!] = idempotenceKey
-//        request.path?.append("?idempotenceKey=\(idempotenceKey)")
         return try await next(request, body, baseURL)
     }
 }
