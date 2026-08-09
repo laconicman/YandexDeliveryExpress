@@ -9,13 +9,10 @@ public extension Client {
         let serverURL =  try serverURL ?? (Servers.Server1.url()) // Maybe spec server is used anyway.
         let configuration = Configuration(dateTranscoder: FlexibleISO8601Transcoder())
         let headerMiddleware = AuthMiddleware(authorizationHeaderFieldValue: "Bearer \(credentials.authToken)")
-        let middlewares: [any ClientMiddleware]
-        if #available(macOS 11.0, *) {
-            middlewares = [headerMiddleware, OSLogLoggingMiddleware(bodyLoggingConfiguration: .upTo(maxBytes: 4000))]
-        } else {
-            // Fallback on earlier versions
-            middlewares = [headerMiddleware]
-        }
+        let middlewares: [any ClientMiddleware] = [
+            headerMiddleware,
+            OSLogLoggingMiddleware(bodyLoggingConfiguration: .upTo(maxBytes: 4000))
+        ]
         self = Client(
             serverURL: serverURL,
             configuration: configuration,

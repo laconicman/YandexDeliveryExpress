@@ -10,8 +10,6 @@ import Foundation
 
 struct FlexibleISO8601Transcoder: DateTranscoder {
     private static let gmt = TimeZone(secondsFromGMT: 0)!
-    // iOS 15+ compatible formatter
-    @available(iOS 15, macOS 12, watchOS 8, tvOS 15, *)
     private static let modernFormatter: Date.ISO8601FormatStyle = {
         var formatter = Date.ISO8601FormatStyle()
         formatter.timeZone = gmt
@@ -20,7 +18,7 @@ struct FlexibleISO8601Transcoder: DateTranscoder {
             .timeZone(separator: .colon)
     }()
     
-    // Fallback formatters for older systems...
+    // Fallback formatters for the wire shapes `Date.ISO8601FormatStyle` rejects.
     private static let withMicroseconds: DateFormatter = {
         let formatter = DateFormatter()
         formatter.calendar = Calendar(identifier: .iso8601)
@@ -40,13 +38,10 @@ struct FlexibleISO8601Transcoder: DateTranscoder {
     }()
     
     func decode(_ dateString: String) throws -> Date {
-        // Try modern API first (iOS 15+)
-        if #available(iOS 15, macOS 12, watchOS 8, tvOS 15, *) {
-            if let date = try? Self.modernFormatter.parse(dateString) {
-                return date
-            }
+        if let date = try? Self.modernFormatter.parse(dateString) {
+            return date
         }
-        
+
         // Try formatters in order of likelihood
         if let date = Self.withMicroseconds.date(from: dateString) {
             return date

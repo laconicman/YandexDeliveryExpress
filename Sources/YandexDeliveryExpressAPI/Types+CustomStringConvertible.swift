@@ -5,7 +5,6 @@
 //  Created by Paul Buktab on 7/22/25.
 //
 // TODO: Implement using `JSONEncoder.prettyPrinted`.
-@available(iOS 15, tvOS 15, watchOS 8, macOS 12, *)
 extension Operations.CalculateOffers.Output: CustomStringConvertible {
     public var description: String {
         switch self {
@@ -43,7 +42,6 @@ extension Operations.CancelClaim.Output: CustomStringConvertible {
     }
 }
 
-@available(iOS 15, tvOS 15, watchOS 8, macOS 12, *)
 extension Components.Parameters.AcceptLanguage: CustomStringConvertible {
     public var description: String {
         switch self {
@@ -53,14 +51,12 @@ extension Components.Parameters.AcceptLanguage: CustomStringConvertible {
     }
 }
 
-@available(iOS 15, tvOS 15, watchOS 8, macOS 12, *)
 extension Components.Schemas.Currency: CustomStringConvertible {
     public var description: String {
         rawValue
     }
 }
 
-@available(iOS 15, tvOS 15, watchOS 8, macOS 12, *)
 extension Components.Schemas.TaxiClass: CustomStringConvertible {
     public var description: String {
         switch self {
@@ -72,28 +68,24 @@ extension Components.Schemas.TaxiClass: CustomStringConvertible {
     }
 }
 
-@available(iOS 15, tvOS 15, watchOS 8, macOS 12, *)
 extension Components.Schemas.CargoType: CustomStringConvertible {
     public var description: String {
         rawValue
     }
 }
 
-@available(iOS 15, tvOS 15, watchOS 8, macOS 12, *)
 extension Components.Schemas.CargoOption: CustomStringConvertible {
     public var description: String {
         rawValue
     }
 }
 
-@available(iOS 15, tvOS 15, watchOS 8, macOS 12, *)
 extension Components.Schemas.PointType: CustomStringConvertible {
     public var description: String {
         rawValue
     }
 }
 
-@available(iOS 15, tvOS 15, watchOS 8, macOS 12, *)
 extension Components.Schemas.CancelState: CustomStringConvertible {
     public var description: String {
         switch self {
