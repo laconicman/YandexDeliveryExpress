@@ -36,9 +36,8 @@ extension AuthMiddleware: ClientMiddleware {
         next: (HTTPRequest, HTTPBody?, URL) async throws -> (HTTPResponse, HTTPBody?)
     ) async throws -> (HTTPResponse, HTTPBody?) {
         var request = request
-        // Adds the `Authorization` header field with the provided value.
-        request.headerFields[.contentType] = "application/json"
-
+        // Sets the configured header field, and nothing else. `Content-Type` in particular
+        // is the generator's to set, per operation, from the document.
         request.headerFields[httpFieldName] = value
         return try await next(request, body, baseURL)
     }
