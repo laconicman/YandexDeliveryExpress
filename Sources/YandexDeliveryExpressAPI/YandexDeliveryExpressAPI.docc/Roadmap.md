@@ -3,30 +3,45 @@
 Planned work in priority order. Rationale lives in <doc:Design>; the register of what is
 wrong today is <doc:TechDebt>.
 
-## Now — make it build and make it true
+## Done — the package builds and is tested
 
-### Restore the package
+Kept as a short record because the whole "Now" section was this, and because the order
+mattered: nothing else could start until the package compiled.
 
-Rename the source directory to match the target, delete the committed generated sources,
-attach the build plugin, raise the floor to iOS 17 / macOS 14, and delete the copied
-`YooMoneyAPIClient` test file. Discharges <doc:TechDebt> TD-1, TD-4 and TD-7. Nothing else
-on this list can start first.
+The source tree was moved to match the manifest, the generator build plugin was attached,
+the floor was raised to iOS 17 / macOS 14, and the copied `YooMoneyAPIClient` test file was
+deleted (TD-1, TD-4, TD-7, TD-8). The two crashes on the success path — the recursive
+`description` implementations (TD-2) and the wrong-bundle localized strings (TD-3) — are
+fixed. Four defects found while doing it were fixed with them: a date transcoder whose
+"modern" parse path matched nothing and whose `encode` truncated sub-second precision, an
+auth middleware overriding `Content-Type`, a `bodyLoggingConfiguration` argument that was
+accepted and ignored, and a decimal-string reader that turned `"807,6"` into `807`.
 
-### Fix the two crashes
+The offline suite is written: decoding, request encoding, the auth middleware, the date
+transcoder, the decimal strings, and the descriptions — twenty-nine tests, no network, no
+credentials.
 
-The recursive `description` implementations (TD-2) and the wrong-bundle localized strings
-(TD-3). Both are on the success path of live code, and both are cheap.
+## Now
 
-### Write the offline suite
+### Decide what happens to `Types+examples.swift`
 
-Swift Testing, a `StubTransport` returning canned JSON, one suite per concern: decoding,
-encoding, the auth middleware, the date transcoder. No network, no credentials, so it can
-run on every push. This is what turns every later change into a reviewable one.
+TD-12, and the only item that should block making this repository public. 452 lines of
+sample route points, contacts and addresses are compiled into the shipping target. Most of
+it is demonstrably synthetic; a door code and one sub-metre coordinate are not obviously so.
+`YooMoneyAPIClient` already made this call once, the hard way.
 
 ### Add CI
 
 `swift build` and `swift test --skip "Live API"` on push. With the build plugin there is no
-drift check to write — that whole job class disappears (<doc:Design>).
+drift check to write — that whole job class disappears (<doc:Design>). Use
+`--build-system swiftbuild` so the String Catalog is actually compiled and the localization
+test runs rather than self-skipping (TD-10).
+
+### Publish
+
+`LICENSE`, `.spi.yml` and `swift-docc-plugin` are in place; what remains is tagging `0.1.0`,
+pushing, and submitting to the Swift Package Index so these articles are readable without
+checking the repository out. Then repoint the sample app from `.package(path:)` to the URL.
 
 ## Next
 
@@ -34,23 +49,26 @@ drift check to write — that whole job class disappears (<doc:Design>).
 
 Remove `value1`/`value2` from the public API by editing the document (TD-5,
 <doc:SpecOwnership>). Source-breaking, so it lands as one release with a migration note,
-together with any other schema shapes worth correcting while callers are already recompiling.
+together with any other schema shapes worth correcting while callers are already
+recompiling — including moving `newRoutePoint` out of the library (TD-13).
 
 ### Give every schema a provenance comment
 
 Each schema links to the Yandex reference page it was read from, or is marked as observed on
 the wire. This is the obligation <doc:SpecOwnership> takes on, and it is what makes a future
-"did Yandex change this, or did we get it wrong?" answerable.
+"did Yandex change this, or did we get it wrong?" answerable. It is also what would let the
+offline fixtures cite a response rather than the document (TD-6).
 
 ### Ship the live suite as a scheduled job
 
 Credential-gated, tagged `.live`, running nightly rather than per-push. The `.undocumented`
-case is the signal to watch: one in production means the document is wrong (TD-6).
+case is the signal to watch: one in production means the document is wrong (TD-6). The
+mutating lifecycle stays behind its second switch and out of any unattended job.
 
-### Publish
+### Get a sandbox account
 
-`LICENSE`, `.spi.yml`, `swift-docc-plugin`, and a Swift Package Index submission so these
-articles are readable without checking the repository out.
+Without one, `acceptClaim` cannot be exercised live (TD-11) and the mutating suite has to be
+run by hand against real credentials.
 
 ## Later
 
@@ -61,6 +79,12 @@ packages. Promoting it to a standalone package alongside
 [`OSLogLoggingMiddleware`](https://github.com/laconicman/OSLogLoggingMiddleware) and
 [`RefreshTokenAuthMiddleware`](https://github.com/laconicman/RefreshTokenAuthMiddleware)
 retires all three copies. Same item as `YooMoneyAPIClient`'s roadmap — do it once, for both.
+
+### Convenience call shorthands
+
+The six operations take verbose nested inputs. A `Client+convenience.swift` with
+`calculateOffers(route:items:language:)`-style overloads would pay for itself — but only
+*after* the `value1`/`value2` flattening, otherwise it wraps a shape that is about to change.
 
 ### Generate the `Identifiable` conformances
 
@@ -76,9 +100,8 @@ If clean-build time becomes painful, split generated types into their own target
 ### Cover the rest of the API
 
 Six operations cover the Express lifecycle. Yandex's B2B Cargo API also exposes same-day
-delivery (`yandex-delivery-other-day-openapi.md` in the sample-app repository is a partial
-transcription), courier tracking, and document retrieval. Each is new schemas in
-`openapi.yaml` plus an `operationId` — add one when a caller needs it, not before.
+delivery, courier tracking, and document retrieval. Each is new schemas in `openapi.yaml`
+plus an `operationId` — add one when a caller needs it, not before.
 
 ## See Also
 

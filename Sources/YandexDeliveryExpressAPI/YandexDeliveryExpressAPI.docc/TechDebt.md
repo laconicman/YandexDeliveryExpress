@@ -4,72 +4,54 @@ Known compromises and defects carried by this package. Each entry names what it 
 the change that discharges it. Reference an item from code with `// TODO(TD-n): …`.
 
 Status legend: **open** (accepted for now) · **blocking** (must be fixed before the package
-builds or ships) · **obligation** (permanent cost of a deliberate design choice).
+builds or ships) · **obligation** (permanent cost of a deliberate design choice) ·
+**discharged** (kept for its number and its history; nothing to do).
 
-## TD-1 — The package does not build — **blocking**
+Numbers are never reused. TD-1 through TD-4, TD-7 and TD-8 were the "this repository does
+not compile" set and are all discharged; TD-10 onward were found while discharging them.
 
-`Package.swift` declares target `YandexDeliveryExpressAPI` with no `path:`, so SwiftPM looks
-for `Sources/YandexDeliveryExpressAPI/`. The sources are in
-`Sources/YandexDeliveryExpressAPIClient/` and `Sources/GeneratedSources/`. The test target
-`YandexDeliveryExpressAPITests` has the same mismatch against
-`Tests/YandexDeliveryExpressAPIClientTests/`. Neither directory exists under the declared
-name, and the generator plugin was never attached to the target at all.
+## TD-1 — The package did not build — **discharged**
 
-- **Cost:** total. Nothing in this repository compiles.
-- **Discharge:** rename the source directory to match the target, delete
-  `Sources/GeneratedSources/`, and attach the build plugin. First item in the handoff.
+`Package.swift` declared target `YandexDeliveryExpressAPI` while the sources sat in
+`Sources/YandexDeliveryExpressAPIClient/` and `Sources/GeneratedSources/`, the test target
+had the same mismatch, and the generator plugin was never attached to anything.
 
-## TD-2 — `CustomStringConvertible` recurses infinitely — **blocking**
+- **Discharged by:** `b863b2e` (move the tree to match the manifest) and `f840a78` (attach
+  the build plugin, raise the floor). `swift build` succeeds from a clean checkout.
 
-Four extensions in `Types+CustomStringConvertable.swift` are written as:
+## TD-2 — `CustomStringConvertible` recursed infinitely — **discharged**
 
-```swift
-extension Operations.CreateClaim.Output: CustomStringConvertible {
-    public var description: String { "\(self)" }
-}
-```
+Four operation outputs implemented `description` as `"\(self)"`. String interpolation calls
+`String(describing:)`, which prefers `CustomStringConvertible`, so `description` called
+itself — a stack overflow on the **success** path of `createClaim`, `getClaimInfo`,
+`acceptClaim` and `cancelClaim`.
 
-String interpolation of a value calls `String(describing:)`, which prefers
-`CustomStringConvertible` — so `description` calls `description`. This is a stack overflow,
-not a formatting bug, and it fires on the **success** path of `createClaim`, `getClaimInfo`,
-`acceptClaim` and `cancelClaim`. The sample app's `RequestState.log(_:)` takes
-`T: CustomStringConvertible` and reads `.description`, so four of its five screens crash the
-moment a request succeeds.
+- **Discharged by:** `df826b6`. `Encodable.prettyJSON` is the single rendering; each output
+  switches over its own cases. `GetClaimCancelInfo.Output` gained the conformance it never
+  had, so all six operations work through the documented logging path. Pinned by
+  `DescriptionTests`, under a time limit because a recursive `description` crashes the test
+  runner rather than failing a test.
 
-- **Cost:** four of six operations are unusable through the documented logging path.
-- **Discharge:** implement the conformances properly — the file's own `TODO` already names
-  the answer (`JSONEncoder` with `.prettyPrinted`, via `Encodable`), and
-  `CalculateOffers.Output` shows the switch-per-case shape. Anything that cannot be
-  implemented meaningfully should not conform at all. Pinned by a test that would have
-  caught it (see the test plan).
+## TD-3 — Localized strings resolved against the wrong bundle — **discharged**
 
-## TD-3 — Localized strings resolve against the wrong bundle — **blocking**
+`String(localized:comment:)` with no `bundle:` searches `Bundle.main` — the consuming app —
+so every lookup failed silently and returned the key. There was also no String Catalog to
+resolve against, and the `.undocumented` case wrote `Payload: payload` as literal text.
 
-`Types+CustomStringConvertable.swift` calls `String(localized:comment:)` with no `bundle:`
-argument. In a Swift package that searches `Bundle.main` — the consuming app's bundle — the
-lookup fails silently and the key is returned verbatim. `Package.swift` also declares
-`defaultLocalization: "en"` while `Sources/Resources/` contains no String Catalog, so there
-is nothing to resolve against in either bundle.
+- **Discharged by:** `736029c`. All call sites pass `bundle: #bundle`;
+  `Resources/Localizable.xcstrings` carries twelve keys with `ru` translations and is
+  declared as a processed resource. See **TD-10** for the part of this that could not be
+  fixed here.
 
-There is a second, smaller bug in the same file: the `.undocumented` case interpolates
-`statusCode` but writes `Payload: payload` as literal text — the `payload` value is never
-shown.
+## TD-4 — The test target contained another package's tests — **discharged**
 
-- **Cost:** every localized string in the package is a no-op; the Russian build shows English
-  keys.
-- **Discharge:** add `bundle: #bundle` to every call, create
-  `Sources/YandexDeliveryExpressAPI/Resources/Localizable.xcstrings`, and declare it as a
-  processed resource.
+`Tests/…/YandexDeliveryExpressAPIClientTests.swift` was a verbatim copy of
+`YooMoneyAPIClient`'s XCTest suite — `final class YooClientTests`,
+`@testable import YooMoneyAPI`, payments.
 
-## TD-4 — The test target contains another package's tests — **blocking**
-
-`Tests/YandexDeliveryExpressAPIClientTests/YandexDeliveryExpressAPIClientTests.swift` is a
-verbatim copy of `YooMoneyAPIClient`'s XCTest suite: it declares `final class YooClientTests`,
-does `@testable import YooMoneyAPI`, and tests payment creation and cancellation. There are
-**zero** tests for this package.
-
-- **Cost:** no regression signal of any kind, and a file that cannot compile.
-- **Discharge:** delete it and write the suites in `Test-Plan.md`.
+- **Discharged by:** `b863b2e` (delete) and `abc3fdd` / `2243b54` (the suites in
+  <doc:TechDebt>'s companion test plan). Twenty-nine offline tests run with no network and
+  no credentials.
 
 ## TD-5 — `value1` / `value2` is public API — **open**
 
@@ -81,41 +63,34 @@ detail is part of this package's surface. Full analysis in <doc:SpecOwnership>.
   that builds a route point.
 - **Discharge:** flatten the schema in `openapi.yaml`. One edit, but source-breaking, so it
   wants a minor-version bump and a note — <doc:Roadmap>.
+  `RoutePointEncodingTests.routePointWithAddressEncodesFlat` is already written as the
+  safety net: the wire format must not change when the Swift shape does.
 
 ## TD-6 — The only real validation is the live suite — **obligation**
 
 Nobody but us checks `openapi.yaml` against the API. Offline stub tests prove the client
 decodes what the document *claims*; only a live call proves the claim. Live tests need an
-`AUTH_TOKEN`, a Yandex Delivery account, and — for `createClaim` — the willingness to create
-a real claim.
+`AUTH_TOKEN` and a Yandex Delivery account.
 
 - **Cost:** the most valuable tests are the ones least often run, and a Yandex-side change
-  is invisible until it breaks a user.
+  is invisible until it breaks a user. Sharpened by the fixtures: with no captured response
+  in the repository, every offline fixture is derived from the document, so the offline
+  suite cannot disagree with the document on its own.
 - **Discharge:** none available; this is the standing cost of <doc:SpecOwnership>. Mitigated
-  by keeping the live suite in CI on a schedule rather than on every push, and by treating
-  a `.undocumented` response in the wild as a spec bug report.
+  by running the live suite on a schedule rather than on every push, and by treating an
+  `.undocumented` response in the wild as a spec bug report.
 
-## TD-7 — Dead files kept as scaffolding — **open**
+## TD-7 — Dead files kept as scaffolding — **discharged**
 
-`Errors.swift` (30 lines) and `Client+samples.swift` (11 lines) are 100 % commented-out code
-copied from `YooMoneyAPIClient` — payments, receipts, `ValidationError` — retained as
-templates. `YandexDeliveryExpressAPIClient.swift` carries a further 81-line commented-out
-`LenientISO8601Transcoder` draft, superseded by the transcoder that actually ships. And
-`FlexibleISO8601Transcoder.swift` still opens with Xcode's `// File.swift` placeholder
+`Errors.swift`, `Client+samples.swift`, an 81-line commented-out `LenientISO8601Transcoder`
+draft, a commented-out idempotency-key block, and an Xcode `// File.swift` placeholder
 header.
 
-- **Cost:** 122 lines that a reader must classify as irrelevant, and grep hits for types that
-  do not exist here.
-- **Discharge:** delete. The templates are one `git log` away in the other repository, and
-  a commented-out block is not a design document — this catalog is.
+- **Discharged by:** `b863b2e` and `0e54826`.
 
-## TD-8 — `Types+CustomStringConvertable.swift` is misspelled — **open**
+## TD-8 — `Types+CustomStringConvertable.swift` was misspelled — **discharged**
 
-`Convertable` → `Convertible`. Trivial, but the file-naming convention is
-`Type+ProtocolName.swift`, so the name is currently wrong in the one way the convention
-exists to prevent.
-
-- **Discharge:** rename with `git mv` as part of the TD-2 fix.
+`Convertable` → `Convertible`, renamed with `git mv` in `b863b2e`.
 
 ## TD-9 — Three abandoned spec drafts live in the sample-app repo — **open**
 
@@ -128,7 +103,78 @@ them, and `_corrected_v2.yaml` is missing `/claims/cancel-info` entirely.
   session can regenerate from the wrong one.
 - **Discharge:** delete the drafts, or move them to an `Archive/` folder with a README
   naming `openapi.yaml` as authoritative. Keep the Postman collection — it is a live-traffic
-  record, which is evidence, not a draft.
+  record, which is evidence, not a draft. Belongs to the sample-app repository, not this one.
+
+## TD-10 — SwiftPM does not compile the String Catalog — **open**
+
+Measured against Swift 6.3.3 / Xcode 26.6: SwiftPM's **native** build system copies
+`Resources/Localizable.xcstrings` into the resource bundle verbatim. It never runs
+`xcstringstool`, so under a plain `swift build` / `swift test` the module reports
+`Bundle.module.localizations == ["en"]` and every lookup returns the source string. Swift
+Build — Xcode, or `swift build --build-system swiftbuild` — produces the expected
+`ru.lproj/Localizable.strings`.
+
+- **Cost:** the `ru` column exists in the catalog but not in a natively-built artifact, and
+  the TD-3 regression test has to be gated on
+  `Bundle.module.localizations.contains("ru")` rather than simply asserting. A consumer who
+  builds with SwiftPM directly gets English.
+- **Discharge:** not ours. Either SwiftPM's native build system grows an `.xcstrings` rule,
+  or the package ships pre-compiled `en.lproj` / `ru.lproj` `.strings` files alongside the
+  catalog — which trades one source of truth for two and is worse. Revisit when the default
+  build system changes; `--build-system swiftbuild` in CI is the cheap workaround today.
+
+## TD-11 — `acceptClaim` has no live test — **open**
+
+Five of six operations are exercised by `LiveClientTests` or `LiveMutatingTests`.
+`acceptClaim` is not, because accepting starts the real courier search and is precisely what
+turns a later cancellation from free into billable — a suite that accepts cannot also
+promise to clean up after itself.
+
+- **Cost:** the one operation whose response shape (`ClaimAcceptResponse`) is never checked
+  against the real API. Under <doc:SpecOwnership> that means its schema is the least
+  trustworthy in the document.
+- **Discharge:** a Yandex Delivery sandbox or test account where acceptance costs nothing.
+  This is an account question, not a code one.
+
+## TD-12 — Sample data ships inside the library target — **open**
+
+`Types+examples.swift` (452 lines) is compiled into the shipping target, so its route
+points, contacts and cargo items are `public` API in every app that links this package.
+
+Names, phone numbers and e-mail addresses in it look synthetic — the names and one phone
+number are copied from `openapi.yaml`'s own `Contact` examples, and the domains are
+`example.com`, reserved for documentation by RFC 2606. Two entries are less obviously
+fiction: `exampleMoscowOffice` carries `doorCode: "301К"` with an apartment and floor, and
+`exampleMoscowApartment` carries coordinates to six decimal places — sub-metre precision,
+where the other three examples use four and point at city-centre landmarks unrelated to
+their own street addresses.
+
+`YooMoneyAPIClient` hit exactly this and resolved it by removing the fixtures from the
+shipping target: its `Migration` article records that they "embedded a real person's email
+address and INN in the binary of every app that linked this package", and the equivalents
+now live in its test target.
+
+- **Cost:** personal data, if any of it is real, is in a published binary and in git history.
+  Even if all of it is fiction, 452 lines of sample data is public API surface that has to be
+  kept compiling.
+- **Discharge:** the author confirms whether the two Moscow addresses are real premises, then
+  either move the file to `Tests/…/Fixtures.swift` (the YooMoney precedent) or keep it in the
+  target behind `#if DEBUG` with the door code and precise coordinates replaced. **Do before
+  the repository is made public.**
+
+## TD-13 — `Types+.swift` puts view-model logic in a transport library — **open**
+
+`public extension [Components.Schemas.RoutePointBase]` adds `newRoutePoint` and
+`addRoutePoint` to an `Array` of a public element type, and derives a new `pointId` as
+`max + 1`.
+
+- **Cost:** choosing identifiers is a presentation concern — the sample app is the only
+  caller — and the derivation is simply wrong if the API ever assigns point ids server-side.
+  The extension is also unnamespaced: it applies to every array of that element type in
+  every consumer.
+- **Discharge:** move it into the sample app, or replace it with a static factory on
+  `RoutePointBase` that takes the id rather than inventing one. Bundle with the TD-5
+  flattening so callers recompile once.
 
 ## See Also
 

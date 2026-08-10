@@ -97,6 +97,24 @@ state you echo back to `cancelClaim`. Calling `cancelClaim` without reading the 
 first is how you accidentally accept a charge. Note the two enums are deliberately different:
 `cancelClaim` has no `unavailable`.
 
+### Amounts
+
+Prices are decimal strings on the wire, and the document pins them to
+`^-?[0-9]{1,14}(\.[0-9]{0,4})?$`. `Double(wireDecimalString:)` reads one and
+`Double.wireDecimalString` writes one, pinned to `en_US` so a comma-decimal device cannot
+emit `"807,6"` and have the API reject it.
+
+```swift
+guard let total = Double(wireDecimalString: offer.price.totalPriceWithVat) else {
+    // Not an amount the specification permits — worth reporting, not worth guessing at.
+    return
+}
+```
+
+The initializer is failable on purpose: the reading is strict, because a lenient one returns
+`807` for `"807,6"` rather than failing, and a plausible wrong price is harder to notice than
+a missing one.
+
 ### Credentials for debugging
 
 `Credentials.environment` reads `AUTH_TOKEN` and returns `nil` when it is unset. In Xcode,
@@ -125,13 +143,25 @@ inverse of the sibling `YooMoneyAPIClient`, whose document is upstream and untou
 
 ```console
 % swift test --skip "Live API"      # no network, no credentials — the CI default
-% AUTH_TOKEN=… swift test           # includes the live suite
+% AUTH_TOKEN=… swift test           # adds the read-only live suite
 ```
 
-The offline suites cover decoding, request encoding, the auth middleware and the date
-transcoder against a stub transport. The live suite talks to the real API, self-skips
-without `AUTH_TOKEN`, and is the only thing that validates a hand-authored document
-(Tech Debt, TD-6).
+The offline suites cover decoding, request encoding, the auth middleware, the date
+transcoder, the decimal-string conversions and the `description` implementations against a
+stub transport. `LiveClientTests` talks to the real API, self-skips without `AUTH_TOKEN`,
+and is the only thing that validates a hand-authored document (Tech Debt, TD-6).
+
+The full lifecycle — create, read, ask what cancelling costs, cancel — **creates a real
+claim**, so it lives in its own suite behind a second switch and is meant to be run by hand
+against test credentials:
+
+```console
+% AUTH_TOKEN=… YDE_ALLOW_MUTATING_LIVE_TESTS=1 swift test --filter "Live API (mutating)"
+```
+
+It cancels whatever it creates, including when an expectation fails part-way, and asserts
+that the cancellation landed. `acceptClaim` is deliberately not exercised live: accepting
+starts the real courier search and is what makes a cancellation billable.
 
 One caveat worth knowing before you write a localization test: SwiftPM's native build system
 copies `Resources/Localizable.xcstrings` into the resource bundle **without compiling it**,

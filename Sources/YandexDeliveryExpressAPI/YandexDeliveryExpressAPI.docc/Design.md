@@ -117,12 +117,66 @@ becomes a parameter in `openapi.yaml` and therefore an argument the caller must 
 
 ## Dates go through one transcoder
 
-Yandex returns ISO-8601 timestamps with inconsistent fractional-second precision.
-`FlexibleISO8601Transcoder` parses the modern form first and falls back for the shapes
-`Date.ISO8601FormatStyle` rejects. At the iOS 17 floor the fallback ladder is no longer an
-*OS* compatibility measure — it is a *wire-format* one, and it is justified only by the
-formats the API actually emits. Each surviving fallback is pinned by a test naming a real
-response string; a fallback with no test is dead code and should be deleted.
+Yandex returns ISO-8601 timestamps with inconsistent fractional-second precision, so
+`FlexibleISO8601Transcoder` tries a fractional-seconds `Date.ISO8601FormatStyle` and then a
+plain one. That is the whole type.
+
+It used to be a four-rung ladder — a "modern" format style followed by two `DateFormatter`
+fallbacks — and measuring it is what collapsed it. The modern rung matched *nothing*: it was
+built as `Date.ISO8601FormatStyle().time(includingFractionalSeconds: true)`, and `.time(_:)`
+**selects** the time fields rather than adding to them, so the style formatted and parsed
+`08:32:14.822` with no date part and every real timestamp fell through to the
+`DateFormatter`s. Spelled with `init(includingFractionalSeconds:timeZone:)` instead, the two
+format styles parse every shape the old ladder did — `Z` and `±hh:mm` and `±hhmm`, one, three
+or six fraction digits — and still reject `"not a date"`.
+
+The rule that produced this stands: a parse path is justified only by a wire shape the API
+actually emits, each pinned by an argument of `DateTranscoderTests.parsesWireTimestamp` with
+a citation. A rung no test names is dead code, and deleting it is the point of measuring.
+
+`encode(_:)` writes fractional seconds. Writing seconds only — which it used to do
+unconditionally — made `decode(encode(date))` lossy for any `Date` with sub-second
+precision.
+
+## Amounts are validated against the document, not against a formatter
+
+Prices cross the wire as decimal strings, and `openapi.yaml` pins every one of them to
+`^-?[0-9]{1,14}(\.[0-9]{0,4})?$`. `Double.init?(wireDecimalString:)` checks that shape and
+then parses with the locale-independent `Double.init(_: String)`; the `en_US`
+`FloatingPointFormatStyle` is used only for **writing**.
+
+Checking the pattern rather than trusting a parser is the decision. We own the document, so
+it *is* the definition of a well-formed amount — and the parser is worse than useless here:
+`Double("807,6", format: style)` does not fail, it reads the digits before the separator and
+returns `807`. A device in a comma-decimal locale would have lost the fraction with nothing
+downstream looking wrong.
+
+**Rejected:** the previous shape, `String.double` returning `0.0` on failure. It put a member
+called `.double` on every `String` in every consuming app and answered "malformed price"
+with "free". The initializer is failable so that a caller can tell a bad amount from a
+genuine zero.
+
+## Bodies are not logged unless the caller asks
+
+`Client.init(…, bodyLoggingConfiguration:)` defaults to `.never` and passes the argument
+through. A `createClaim` body carries recipient names, phone numbers, street addresses,
+apartment and floor numbers, and door codes; there is no maximum byte count at which logging
+that by default is right. The parameter used to be accepted and then ignored in favour of
+`.upTo(maxBytes: 4000)` — the identical defect `YooMoneyAPIClient` fixed in its 2.0.
+
+Reading `OSLogLoggingMiddleware` at `52150c4` for this: header fields are never logged at
+all, so `Authorization` cannot reach the unified log under any policy, and bodies are
+interpolated `privacy: .auto` rather than `.public`.
+
+## Live tests are split by whether they change anything
+
+`LiveClientTests` is read-only and gated on `AUTH_TOKEN`. `LiveMutatingTests` creates a real
+claim and needs `YDE_ALLOW_MUTATING_LIVE_TESTS=1` as well, because a token cannot tell a
+test account from a production one and the difference is somebody's money. Both suites
+answer to `--skip "Live API"`.
+
+**Rejected:** one suite with the lifecycle marked `.disabled`. It was safe and useless in
+the same move — a test nothing can run is not a test, and it cannot be scheduled either.
 
 ## `Identifiable` conformances are hand-written, and that is proportionate
 
