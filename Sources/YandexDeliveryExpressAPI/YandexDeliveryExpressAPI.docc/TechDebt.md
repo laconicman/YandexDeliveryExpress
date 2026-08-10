@@ -176,6 +176,37 @@ now live in its test target.
   `RoutePointBase` that takes the id rather than inventing one. Bundle with the TD-5
   flattening so callers recompile once.
 
+## TD-14 — One log path ignores `bodyLoggingConfiguration` — **open**
+
+`OSLogLoggingMiddleware` logs successes with `logger.debug` and honours the body policy, but
+logs *failures* with `logger.warning("Request failed. Error: \(error.localizedDescription)")`,
+which never consults `BodyLoggingPolicy` at all.
+
+Scope, measured rather than assumed. `ClientError` has two renderings, and this path takes
+the smaller one: `localizedDescription` resolves to `LocalizedError.errorDescription`, which
+is operation id, cause and underlying error — **not** the `CustomStringConvertible`
+`description`, which interpolates `operationInput` and would carry every name, phone number
+and door code in the request. So a failure does not dump the body. Two things still make it
+worth an entry:
+
+- It is the only path a caller cannot switch off. Someone who wrote `.never` has reason to
+  expect that nothing derived from their request is logged.
+- `Logger.warning` is `.error` level, which the unified logging system **persists to disk**;
+  `Logger.debug` is not persisted by default. The one unswitchable path is also the durable
+  one. Its argument is interpolated `privacy: .auto`, so it renders as `<private>` in normal
+  collection — but a sysdiagnose profile or an attached debugger reveals it.
+
+- **Cost:** small and bounded, but it is an exception to a guarantee this package's default
+  otherwise makes cleanly.
+- **Discharge:** upstream, in `OSLogLoggingMiddleware` — either route the failure log through
+  the policy too, or annotate it `privacy: .private` explicitly. Folded into the "extract
+  `AuthMiddleware`" work in <doc:Roadmap> → Later, which already opens that package.
+
+Found by asking DeepWiki to check a conclusion already drawn from the source, which is the
+value of asking: the source read was right about headers, privacy levels and `.never`, and
+wrong that every path goes through `logger.debug`. Index pinned at `52150c4b`, 0 commits
+behind that repository's HEAD.
+
 ## See Also
 
 - <doc:SpecOwnership>

@@ -164,9 +164,13 @@ apartment and floor numbers, and door codes; there is no maximum byte count at w
 that by default is right. The parameter used to be accepted and then ignored in favour of
 `.upTo(maxBytes: 4000)` — the identical defect `YooMoneyAPIClient` fixed in its 2.0.
 
-Reading `OSLogLoggingMiddleware` at `52150c4` for this: header fields are never logged at
-all, so `Authorization` cannot reach the unified log under any policy, and bodies are
-interpolated `privacy: .auto` rather than `.public`.
+Reading `OSLogLoggingMiddleware` at `52150c4` for this, and checking that reading against
+DeepWiki: header fields are never logged at all, so `Authorization` cannot reach the unified
+log under any policy; method, path and status are `privacy: .public`; bodies are
+`privacy: .auto`, so they render `<private>` in ordinary log collection even when a policy
+does let them through. One path — the failure log — ignores the policy entirely; that is
+<doc:TechDebt> TD-14, and it is bounded because it logs `localizedDescription` rather than
+the `ClientError` description that would carry the request.
 
 ## Live tests are split by whether they change anything
 
