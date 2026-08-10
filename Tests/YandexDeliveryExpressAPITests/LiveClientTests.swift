@@ -24,20 +24,6 @@ struct LiveClientTests {
         return try Client(credentials: credentials)
     }
 
-    @Test("A bogus token comes back as .unauthorized")
-    func rejectsBadCredentials() async throws {
-        // Start here when bringing this suite up: it needs no valid account, and it proves
-        // the auth path end to end.
-        let client = try Client(credentials: .init(authToken: "definitely-not-a-token"))
-
-        let response = try await client.calculateOffers(.sample)
-
-        guard case .unauthorized = response else {
-            Issue.record("Expected .unauthorized for a bogus token, got \(response)")
-            return
-        }
-    }
-
     @Test("A real Moscow route returns at least one priced offer")
     func calculatesOffersForARealRoute() async throws {
         // Read-only, so it costs nothing to run.

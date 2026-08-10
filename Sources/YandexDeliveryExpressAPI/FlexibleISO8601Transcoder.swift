@@ -32,9 +32,16 @@ struct FlexibleISO8601Transcoder: DateTranscoder {
         )
     }
 
-    /// Writes fractional seconds. Omitting them — which this type used to do
-    /// unconditionally — made `decode(encode(date))` lossy for any `Date` carrying
-    /// sub-second precision.
+    /// Writes fractional seconds, to **millisecond** granularity — three digits is what
+    /// `Date.ISO8601FormatStyle` emits.
+    ///
+    /// That is a narrower promise than "lossless", and the difference matters: a `Date`
+    /// captured at runtime carries microseconds, and those are still dropped, so
+    /// `decode(encode(date)) == date` holds only for values whose sub-second part is a whole
+    /// number of milliseconds. What this fixes is the previous behaviour of dropping the
+    /// fraction *entirely*, which lost up to a second. The remaining limit is pinned by
+    /// `DateTranscoderTests.roundTripsWithoutLosingPrecision` rather than left to be
+    /// rediscovered.
     func encode(_ date: Date) throws -> String {
         Self.withFractionalSeconds.format(date)
     }

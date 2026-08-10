@@ -218,7 +218,7 @@ live call. Grouped because they have one discharge: run the live suite before ta
    two operations, which previously carried a header describing a body they do not have.
    That is the correct HTTP shape, and Yandex may still want the header.
    `RoutePointEncodingTests.bodylessOperationsSendNoContentType` pins what we now send.
-2. **Request timestamps now carry fractional seconds.** Fixing the lossy `encode` changed
+2. **Request timestamps now carry fractional seconds.** Fixing the truncating `encode` changed
    `OfferRequirements.due` from `2026-08-07T10:32:14Z` to `2026-08-07T10:32:14.822Z`. Valid
    ISO-8601 and within the document, but it is the request side, where a strict server is
    the only thing that can tell us we are wrong.

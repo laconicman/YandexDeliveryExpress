@@ -31,7 +31,7 @@ struct DateTranscoderTests {
         #expect(date != Date(timeIntervalSince1970: 0))
     }
 
-    @Test("Encoding a date does not discard its sub-second component")
+    @Test("Encoding keeps milliseconds — and only milliseconds")
     func roundTripsWithoutLosingPrecision() throws {
         // Regression for the shipped bug: `encode(_:)` used a seconds-only formatter, so
         // `decode(encode(date))` silently truncated. Fix `encode`, never this expectation.
@@ -42,6 +42,15 @@ struct DateTranscoderTests {
 
         #expect(encoded.contains(".822"))
         #expect(try transcoder.decode(encoded) == date)
+
+        // The other half, pinned so the guarantee is not read as wider than it is:
+        // `Date.ISO8601FormatStyle` emits exactly three fraction digits, so a `Date` with
+        // microsecond precision — which is what `Date()` gives you — does *not* survive
+        // exactly. The fix recovered the millisecond, not the microsecond.
+        let microseconds = Date(timeIntervalSince1970: 1_754_555_534.123456)
+        let roundTripped = try transcoder.decode(try transcoder.encode(microseconds))
+        #expect(roundTripped != microseconds)
+        #expect(abs(roundTripped.timeIntervalSince(microseconds)) < 0.001)
     }
 
     @Test("Unparseable input fails loudly")

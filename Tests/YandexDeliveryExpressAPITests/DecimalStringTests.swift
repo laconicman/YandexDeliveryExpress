@@ -71,6 +71,18 @@ struct DecimalStringTests {
         #expect(amount.wireDecimalString == "12.35")
     }
 
+    @Test("The writer has no guard rails, and that is known rather than intended")
+    func writerHasNoGuardRails() {
+        // Pins a real inconsistency rather than asserting it is fine: these outputs are
+        // outside the document's pattern, so the writer can emit what its own reader
+        // rejects. No amount in this API reaches them, and a `nan` price is a bug upstream
+        // of here, so nothing guards against it — but the day someone passes arbitrary
+        // input to `wireDecimalString`, this test is the note explaining what happens.
+        #expect(Double(wireDecimalString: (1e15).wireDecimalString) == nil)
+        #expect(Double(wireDecimalString: Double.nan.wireDecimalString) == nil)
+        #expect(Double(wireDecimalString: Double.infinity.wireDecimalString) == nil)
+    }
+
     @Test("An amount at the precision we send survives a round trip")
     func roundTripsAmounts() throws {
         for amount in [0.0, 0.5, 807.6, 89990.0, -1.25, 0.01] {

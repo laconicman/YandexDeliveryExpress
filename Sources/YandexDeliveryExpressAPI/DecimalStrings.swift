@@ -48,6 +48,16 @@ private func isWireDecimal(_ string: String) -> Bool {
 /// this API asks a caller to echo a price back, so no call site hits it today; if one ever
 /// does, widening this cap is the fix and it needs a live request to confirm Yandex accepts
 /// four digits before it lands.
+///
+/// **A second, sharper asymmetry:** this writer can produce strings its own reader rejects.
+/// It has no guard on magnitude or on non-finite values, so `1e15` writes sixteen integer
+/// digits and `Double.nan` writes a non-numeric token — both outside the pattern above, and
+/// both rejected by `Double.init?(wireDecimalString:)`. That is not a precision trade like
+/// the one above; it is an inconsistency, and it is left rather than guarded because no
+/// amount in this API reaches those magnitudes and a `nan` price is a bug upstream of here
+/// that a `precondition` would only relocate. `DecimalStringTests.writerHasNoGuardRails`
+/// pins it so it stays a known limitation. Add a guard if this ever becomes a convenience
+/// that callers reach for with arbitrary input.
 private let wireDecimalStyle = FloatingPointFormatStyle<Double>(locale: Locale(identifier: "en_US"))
     .decimalSeparator(strategy: .automatic)
     .grouping(.never)

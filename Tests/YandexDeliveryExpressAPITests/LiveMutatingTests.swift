@@ -39,12 +39,28 @@ struct LiveMutatingTests {
         // framework guarantees, and a failure half way would strand a claim.
         let client = try Client(credentials: #require(Credentials.environment))
 
-        let created = try await client.createClaim(
-            query: .init(requestId: UUID().uuidString),
-            headers: .init(acceptLanguage: .ru),
-            body: .json(.exampleSmartphoneDelivery)
-        )
-        let claim = try #require(try? created.ok.body.json, "createClaim did not return 200: \(created)")
+        // Captured *before* the call, because the dangerous case is the one where we never
+        // learn the claim id: a 5xx, a timeout after the server accepted, or a 200 whose
+        // body will not decode. `request_id` is the API's idempotency token, and the
+        // document is explicit that reusing it returns the claim already created rather than
+        // creating a second one — and about the cost of getting that wrong, which is two
+        // couriers arriving for one delivery.
+        let requestId = UUID().uuidString
+
+        let claim: Components.Schemas.ClaimResponse
+        do {
+            let created = try await client.createClaim(
+                query: .init(requestId: requestId),
+                headers: .init(acceptLanguage: .ru),
+                body: .json(.exampleSmartphoneDelivery)
+            )
+            claim = try #require(try? created.ok.body.json, "createClaim did not return 200: \(created)")
+        } catch {
+            // We do not know whether a claim exists. Ask, using the same token, and cancel
+            // whatever comes back.
+            await recoverAndCancel(requestId: requestId, with: client)
+            throw error
+        }
         #expect([.new, .estimating, .readyForApproval].contains(claim.status))
 
         // What the cancellation will be built from, refreshed as the API tells us more. A
@@ -94,6 +110,34 @@ struct LiveMutatingTests {
     private struct Cancellation {
         var version: Int64
         var state: Components.Schemas.CancelState
+    }
+
+    /// Last resort for the case where the claim id was never learned.
+    ///
+    /// Re-posts `createClaim` with the **same** `request_id`. Per the document that returns
+    /// the claim the server already created, so this is a read dressed as a write; if no
+    /// claim existed, it creates one and we cancel that instead, which is a strictly better
+    /// outcome than leaving an unknown claim running. Either way the account ends up with
+    /// nothing live.
+    private func recoverAndCancel(requestId: String, with client: Client) async {
+        guard let created = try? await client.createClaim(
+            query: .init(requestId: requestId),
+            headers: .init(acceptLanguage: .ru),
+            body: .json(.exampleSmartphoneDelivery)
+        ),
+        let claim = try? created.ok.body.json
+        else {
+            Issue.record(
+                """
+                Could not establish whether a claim exists for request_id \(requestId). \
+                CHECK THE ACCOUNT BY HAND — a billable claim may be running.
+                """
+            )
+            return
+        }
+
+        let cancelled = await cancel(claim.id, .init(version: claim.version, state: .free), with: client)
+        #expect(cancelled, "Recovered claim \(claim.id) but could not cancel it — CANCEL IT BY HAND")
     }
 
     /// Cancels, and fails the test if the claim is still alive afterwards.

@@ -185,9 +185,16 @@ iOS 18.2 — two major versions below it — but **not** on the iOS 17 floor, fo
 simulator runtime is installed. Running the suite against the oldest available runtime is
 therefore part of the CI item in <doc:Roadmap>, not an optional extra.
 
-`encode(_:)` writes fractional seconds. Writing seconds only — which it used to do
-unconditionally — made `decode(encode(date))` lossy for any `Date` with sub-second
-precision.
+`encode(_:)` writes fractional seconds, to millisecond granularity — three digits is what
+`Date.ISO8601FormatStyle` emits. Writing seconds only, which it used to do unconditionally,
+lost up to a whole second on every timestamp sent.
+
+The narrower claim is deliberate. Milliseconds is not lossless: a `Date` captured at runtime
+carries microseconds and still loses them, so `decode(encode(date)) == date` holds only for
+values whose sub-second part is a whole number of milliseconds. Both halves are pinned by
+`DateTranscoderTests.roundTripsWithoutLosingPrecision` — the recovered millisecond and the
+still-dropped microsecond — because a guarantee stated more strongly than the code delivers
+is how someone later builds on exact equality that was never there.
 
 ## Amounts are validated against the document, not against a formatter
 

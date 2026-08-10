@@ -35,10 +35,18 @@ the second is the only thing that validates a hand-authored spec, and it is expe
 | `DecimalStringTests.swift` | Decimal strings | `.specContract` | Amounts in both directions, and what is *not* an amount |
 | `AuthMiddlewareTests.swift` | Auth middleware | `.regression` | One thing it does, three it must not |
 | `DescriptionTests.swift` | Descriptions | `.regression` | TD-2, under a time limit |
+| `LiveUnauthenticatedTests.swift` | Live API (unauthenticated) | `.live` | The auth path, no account needed |
 | `LiveClientTests.swift` | Live API | `.live` | Read-only, credential-gated |
 | `LiveMutatingTests.swift` | Live API (mutating) | `.live`, `.mutating` | The lifecycle, double-gated |
 
-Both live suites are matched by `--skip "Live API"`, so one flag keeps CI offline.
+All three live suites are matched by `--skip "Live API"`, so one flag keeps CI offline.
+
+The unauthenticated suite exists because `rejectsBadCredentials` was gated on exactly the
+thing it does not need. It builds its own client with a deliberately bad token, yet inherited
+`.enabled(if: Credentials.environment != nil)` — so it never ran on the machine where it is
+cheapest, one with no `AUTH_TOKEN`. It now runs with credentials *or* with
+`YDE_ALLOW_NETWORK_TESTS=1`, and verifies most of the transport wiring — URL resolution,
+header attachment, and a documented 401 arriving as a case rather than a throw — for free.
 
 ### Fixture provenance — read this before adding one
 
