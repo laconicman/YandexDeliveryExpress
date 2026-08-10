@@ -148,7 +148,7 @@ enum Fixture {
     static let claimResponseJSON = #"""
     {
       "created_ts": "2020-01-01T00:00:00+00:00",
-      "updated_ts": "2020-01-01T00:00:00.822000+00:00",
+      "updated_ts": "2020-01-01T00:00:00.500000+00:00",
       "id": "741cedf82cd464fa6fa16d87155c636",
       "revision": 1,
       "version": 1,

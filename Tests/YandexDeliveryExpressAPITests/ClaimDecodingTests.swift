@@ -44,8 +44,10 @@ struct ClaimDecodingTests {
         #expect(claim.routePoints.count == 2)
         #expect(claim.routePoints.first?._type == .source)
         #expect(claim.createdTs == Date(timeIntervalSince1970: 1_577_836_800))
-        // The fixture's `updated_ts` carries six fraction digits and `created_ts` none.
-        #expect(claim.updatedTs == Date(timeIntervalSince1970: 1_577_836_800.822))
+        // The fixture's `updated_ts` carries six fraction digits and `created_ts` none. The
+        // value is exactly representable as a `Double`, so this asserts millisecond fidelity
+        // rather than betting on how Foundation rounds the third digit.
+        #expect(claim.updatedTs == Date(timeIntervalSince1970: 1_577_836_800.5))
     }
 
     @Test("A claims/cancel-info 200 decodes the state that decides whether cancelling costs money")
@@ -70,6 +72,10 @@ struct ClaimDecodingTests {
         // cannot merge them.
         #expect(Components.Schemas.CancelInfoCancelState.allCases.map(\.rawValue) == ["free", "paid", "unavailable"])
         #expect(Components.Schemas.CancelState.allCases.map(\.rawValue) == ["free", "paid"])
+        // Both render for a human, and the three-case one — the response type, the one a
+        // caller actually displays — renders its extra case rather than falling back.
+        #expect(!Components.Schemas.CancelInfoCancelState.unavailable.description.isEmpty)
+        #expect(Components.Schemas.CancelInfoCancelState.allCases.map(\.description).count == 3)
     }
 
     @Test("A documented non-2xx is a case to switch on, not a thrown error")

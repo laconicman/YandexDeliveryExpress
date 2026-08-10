@@ -47,19 +47,34 @@ struct LiveMutatingTests {
         // couriers arriving for one delivery.
         let requestId = UUID().uuidString
 
-        let claim: Components.Schemas.ClaimResponse
+        let created: Operations.CreateClaim.Output
         do {
-            let created = try await client.createClaim(
+            created = try await client.createClaim(
                 query: .init(requestId: requestId),
                 headers: .init(acceptLanguage: .ru),
                 body: .json(.exampleSmartphoneDelivery)
             )
-            claim = try #require(try? created.ok.body.json, "createClaim did not return 200: \(created)")
         } catch {
-            // We do not know whether a claim exists. Ask, using the same token, and cancel
-            // whatever comes back.
+            // Ambiguous: a transport failure can mean the server never saw the request, or
+            // saw it, created the claim, and lost the response. Ask, using the same token.
             await recoverAndCancel(requestId: requestId, with: client)
             throw error
+        }
+
+        guard case .ok(let ok) = created else {
+            // *Not* ambiguous. Yandex answered with a documented refusal — a 400 or a 401 —
+            // so no claim was created and there is nothing to clean up. Recovering here
+            // would post `createClaim` again and bring into existence the very claim we
+            // were trying not to leave behind.
+            Issue.record("createClaim was refused, so nothing was created: \(created)")
+            return
+        }
+        guard let claim = try? ok.body.json else {
+            // A 200 we cannot read: the claim almost certainly exists and we do not have its
+            // id, which is exactly what the idempotency token is for.
+            await recoverAndCancel(requestId: requestId, with: client)
+            Issue.record("createClaim returned 200 with a body that would not decode")
+            return
         }
         #expect([.new, .estimating, .readyForApproval].contains(claim.status))
 
@@ -98,7 +113,11 @@ struct LiveMutatingTests {
                 Issue.record("Yandex reports cancellation unavailable for \(claim.id); attempting anyway")
             }
         } catch {
-            await cancel(claim.id, cancellation, with: client)
+            // Same shout as the other two cleanup sites. Discarding this result was the
+            // third hole in this guardrail: a read failing mid-lifecycle would surface only
+            // the read error, and a claim left running would say nothing at all.
+            let cancelled = await cancel(claim.id, cancellation, with: client)
+            #expect(cancelled, "Could not cancel \(claim.id) — CANCEL IT BY HAND, the account is being billed for it")
             throw error
         }
 

@@ -192,3 +192,18 @@ extension Components.Schemas.CancelState: CustomStringConvertible {
         }
     }
 }
+
+// MARK: - Components.Schemas.CancelInfoCancelState + CustomStringConvertible
+
+/// The three-case sibling — the one `getClaimCancelInfo` actually returns, and therefore the
+/// one a caller displays. `CancelState` is the request-side enum you echo back, and it has no
+/// `.unavailable`; the document is explicit that the two must not be confused.
+extension Components.Schemas.CancelInfoCancelState: CustomStringConvertible {
+    public var description: String {
+        switch self {
+        case .free: String(localized: "Free", bundle: #bundle, comment: "Components.Schemas.CancelInfoCancelState")
+        case .paid: String(localized: "Paid", bundle: #bundle, comment: "Components.Schemas.CancelInfoCancelState")
+        case .unavailable: String(localized: "Unavailable", bundle: #bundle, comment: "Components.Schemas.CancelInfoCancelState")
+        }
+    }
+}

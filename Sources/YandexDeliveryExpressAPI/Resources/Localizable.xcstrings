@@ -100,6 +100,17 @@
         }
       }
     },
+    "Unavailable" : {
+      "comment" : "Components.Schemas.CancelInfoCancelState",
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "недоступна"
+          }
+        }
+      }
+    },
     "Undecoded JSON" : {
       "comment" : "Error description",
       "localizations" : {

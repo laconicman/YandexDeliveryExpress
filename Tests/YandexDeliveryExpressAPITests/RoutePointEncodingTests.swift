@@ -60,7 +60,9 @@ struct RoutePointEncodingTests {
         // about this field, this is the test that says what we send.
         let recorder = RequestRecorder()
         let client = try Client.recording(recorder: recorder)
-        let due = Date(timeIntervalSince1970: 1_754_555_534.822)
+        // Exactly representable as a `Double`, so the expected string below is a fact about
+        // our format style rather than about Foundation's rounding of the third digit.
+        let due = Date(timeIntervalSince1970: 1_754_555_534.5)
         let request = Components.Schemas.OffersCalculateRequest(
             routePoints: .exampleMoscowRoute,
             requirements: .init(due: due)
@@ -73,7 +75,7 @@ struct RoutePointEncodingTests {
         let requirements = try #require(json["requirements"] as? [String: Any])
         let encoded = try #require(requirements["due"] as? String)
 
-        #expect(encoded == "2025-08-07T08:32:14.822Z")
+        #expect(encoded == "2025-08-07T08:32:14.500Z")
         // And it survives the trip back, which is the point of writing the fraction at all.
         #expect(try FlexibleISO8601Transcoder().decode(encoded) == due)
     }
