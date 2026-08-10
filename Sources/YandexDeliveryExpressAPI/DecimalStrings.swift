@@ -30,13 +30,20 @@ private func isWireDecimal(_ string: String) -> Bool {
     return parts[1].count <= 4 && isDigits(parts[1])
 }
 
-/// How amounts are written: a dot separator, no grouping, at most two fraction digits.
-/// Pinned to `en_US` so a device in a comma-decimal locale cannot emit `"807,6"` and have
-/// the API reject it.
+/// How amounts are written: a dot separator, no grouping, and **the same four fraction
+/// digits the pattern above permits**. Pinned to `en_US` so a device in a comma-decimal
+/// locale cannot emit `"807,6"` and have the API reject it.
+///
+/// The four matters. This used to cap at two, inherited from the deleted
+/// `Client.floatingPointFormatStyle`, which made the reader wider than the writer: an amount
+/// the document allows — `"12.3456"` — read back exactly and then wrote out as `"12.35"`,
+/// silently changing it. Reader and writer now accept and emit the same set, so a value that
+/// survives one survives the other. Trailing zeros are still dropped, so ordinary
+/// two-decimal money is unchanged: `807.60` writes as `"807.6"`.
 private let wireDecimalStyle = FloatingPointFormatStyle<Double>(locale: Locale(identifier: "en_US"))
     .decimalSeparator(strategy: .automatic)
     .grouping(.never)
-    .precision(.fractionLength(0...2))
+    .precision(.fractionLength(0...4))
 
 public extension Double {
     /// Reads one of the decimal strings the API uses in place of a number.

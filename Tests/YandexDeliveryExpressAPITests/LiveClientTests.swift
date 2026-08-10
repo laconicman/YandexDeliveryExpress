@@ -48,7 +48,13 @@ struct LiveClientTests {
         let offers = try #require(try? response.ok.body.json.offers)
         #expect(!offers.isEmpty)
         let offer = try #require(offers.first)
-        #expect(Double(offer.price.totalPriceWithVat) ?? 0 > 0)
+        // Through the strict reader on purpose: a live price that the document's own pattern
+        // rejects is a spec bug, and this suite is the only thing that can catch one (TD-6).
+        let total = try #require(
+            Double(wireDecimalString: offer.price.totalPriceWithVat),
+            "Live price \"\(offer.price.totalPriceWithVat)\" is not an amount openapi.yaml permits"
+        )
+        #expect(total > 0)
     }
 
     @Test("Every read operation decodes, and records rather than fails when it does not")

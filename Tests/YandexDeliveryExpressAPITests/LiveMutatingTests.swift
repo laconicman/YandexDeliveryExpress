@@ -2,6 +2,13 @@ import Foundation
 import Testing
 @testable import YandexDeliveryExpressAPI
 
+/// Both gates, read at suite-construction time. A file-scope constant rather than a static
+/// on the suite: an `@Suite` trait cannot refer to a member of the type it is attached to.
+private var mutatingLiveTestsAreEnabled: Bool {
+    Credentials.environment != nil
+        && ProcessInfo.processInfo.environment["YDE_ALLOW_MUTATING_LIVE_TESTS"] == "1"
+}
+
 /// The manual path: the whole claim lifecycle against a real account, end to end.
 ///
 /// Separated from ``LiveClientTests`` because everything here **changes server-side state**.
@@ -13,17 +20,11 @@ import Testing
 /// ```
 ///
 /// Run it against **test credentials**. Both gates are checked, the suite is `.serialized`,
-/// and whatever it creates it cancels — including when an expectation fails part-way.
+/// and whatever it creates it cancels — using the version and cancel state the API just
+/// reported, not values guessed in advance.
 ///
 /// `--skip "Live API"` skips this suite too, so the CI default is unaffected by its
 /// existence.
-/// Both gates, read at suite-construction time. A file-scope function rather than a static
-/// on the suite: an `@Suite` trait cannot refer to a member of the type it is attached to.
-private var mutatingLiveTestsAreEnabled: Bool {
-    Credentials.environment != nil
-        && ProcessInfo.processInfo.environment["YDE_ALLOW_MUTATING_LIVE_TESTS"] == "1"
-}
-
 @Suite(
     "Live API (mutating)",
     .tags(.live, .mutating),
@@ -44,14 +45,20 @@ struct LiveMutatingTests {
             body: .json(.exampleSmartphoneDelivery)
         )
         let claim = try #require(try? created.ok.body.json, "createClaim did not return 200: \(created)")
-        #expect(claim.status == .new || claim.status == .estimating || claim.status == .readyForApproval)
+        #expect([.new, .estimating, .readyForApproval].contains(claim.status))
 
-        try await cancelling(claim.id, with: client) {
+        // What the cancellation will be built from, refreshed as the API tells us more. A
+        // claim's version moves as it progresses server-side, so cancelling with a stale one
+        // is rejected — which is how a "guardrail" leaves a live claim behind.
+        var cancellation = Cancellation(version: claim.version, state: .free)
+
+        do {
             let info = try await client.getClaimInfo(
                 query: .init(claimId: claim.id),
                 headers: .init(acceptLanguage: .ru)
             )
             let fetched = try #require(try? info.ok.body.json)
+            cancellation.version = fetched.version
             #expect(fetched.id == claim.id)
             #expect(fetched.routePoints.count == 2)
 
@@ -59,48 +66,83 @@ struct LiveMutatingTests {
                 query: .init(claimId: claim.id),
                 headers: .init(acceptLanguage: .ru)
             )
-            let state = try #require(try? cancelInfo.ok.body.json.cancelState)
-            // `.unavailable` is a legitimate outcome, not a failure: there is a window in
-            // which Yandex will not let a claim be cancelled at all.
-            #expect([.free, .paid, .unavailable].contains(state))
-            // An unaccepted claim should still be free to cancel. If this ever reports
-            // `.paid`, the guarantee this whole suite rests on is gone — read it before
-            // running again.
-            #expect(state != .paid, "Cancelling an unaccepted claim was billable")
+            let observed = try #require(try? cancelInfo.ok.body.json.cancelState)
+            // `CancelInfoCancelState` has a third case `CancelState` does not, which is the
+            // whole reason the document says «Не путать с CancelState». `.unavailable`
+            // cannot be echoed back, so the best we can do is try `.free` and shout if it
+            // fails.
+            switch observed {
+            case .free:
+                cancellation.state = .free
+            case .paid:
+                cancellation.state = .paid
+                Issue.record("Cancelling an unaccepted claim was billable — the premise this suite rests on is gone")
+            case .unavailable:
+                cancellation.state = .free
+                Issue.record("Yandex reports cancellation unavailable for \(claim.id); attempting anyway")
+            }
+        } catch {
+            await cancel(claim.id, cancellation, with: client)
+            throw error
         }
+
+        try await cancelAndAssert(claim.id, cancellation, with: client)
     }
 
     // MARK: Guardrails
 
-    /// Runs `body`, then cancels `claimId` whether or not it threw, and asserts that the
-    /// cancellation actually landed. A run that leaves a claim behind bills the account.
-    private func cancelling(
-        _ claimId: String,
-        with client: Client,
-        _ body: () async throws -> Void
-    ) async throws {
-        do {
-            try await body()
-        } catch {
-            await cancelQuietly(claimId, with: client)
-            throw error
-        }
-
-        let cancelled = try await client.cancelClaim(
-            query: .init(claimId: claimId),
-            headers: .init(acceptLanguage: .ru),
-            body: .json(.init(version: 1, cancelState: .free))
-        )
-        let result = try #require(try? cancelled.ok.body.json, "cancelClaim did not return 200: \(cancelled)")
-        #expect(result.status == .cancelled)
+    private struct Cancellation {
+        var version: Int64
+        var state: Components.Schemas.CancelState
     }
 
-    private func cancelQuietly(_ claimId: String, with client: Client) async {
-        _ = try? await client.cancelClaim(
+    /// Cancels, and fails the test if the claim is still alive afterwards.
+    private func cancelAndAssert(
+        _ claimId: String,
+        _ cancellation: Cancellation,
+        with client: Client
+    ) async throws {
+        let outcome = await cancel(claimId, cancellation, with: client)
+        #expect(outcome, "Could not cancel \(claimId) — CANCEL IT BY HAND, the account is being billed for it")
+    }
+
+    /// One cancellation attempt, then — if the version was the problem — one retry with the
+    /// version re-read from the API. Returns whether the claim ended up cancelled.
+    @discardableResult
+    private func cancel(
+        _ claimId: String,
+        _ cancellation: Cancellation,
+        with client: Client
+    ) async -> Bool {
+        if await cancelOnce(claimId, cancellation, with: client) { return true }
+
+        // A rejected cancellation is most often a stale `version`: the claim moved on
+        // between the read and the write. Re-read it and try once more, rather than
+        // abandoning a live claim.
+        guard let fresh = try? await client.getClaimInfo(
+            query: .init(claimId: claimId),
+            headers: .init(acceptLanguage: .ru)
+        ),
+        let reread = try? fresh.ok.body.json
+        else { return false }
+
+        return await cancelOnce(claimId, .init(version: reread.version, state: cancellation.state), with: client)
+    }
+
+    private func cancelOnce(
+        _ claimId: String,
+        _ cancellation: Cancellation,
+        with client: Client
+    ) async -> Bool {
+        guard let response = try? await client.cancelClaim(
             query: .init(claimId: claimId),
             headers: .init(acceptLanguage: .ru),
-            body: .json(.init(version: 1, cancelState: .free))
-        )
+            body: .json(.init(version: cancellation.version, cancelState: cancellation.state))
+        ),
+        let body = try? response.ok.body.json
+        else { return false }
+
+        return body.status == .cancelled || body.status == .cancelledWithPayment
     }
 }
 
@@ -109,4 +151,4 @@ struct LiveMutatingTests {
 // `acceptClaim` is the one operation with no live test. Accepting is what starts the real
 // courier search, and it is the step that makes a cancellation billable — a suite that
 // accepts cannot also promise to cancel for free. Exercising it needs a Yandex sandbox
-// account rather than a guardrail, which is recorded in the DocC `TechDebt` article.
+// account rather than a guardrail, which is recorded in the DocC `TechDebt` article (TD-11).

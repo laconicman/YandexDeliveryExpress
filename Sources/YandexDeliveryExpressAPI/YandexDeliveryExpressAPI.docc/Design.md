@@ -134,6 +134,13 @@ The rule that produced this stands: a parse path is justified only by a wire sha
 actually emits, each pinned by an argument of `DateTranscoderTests.parsesWireTimestamp` with
 a citation. A rung no test names is dead code, and deleting it is the point of measuring.
 
+One caveat this design takes on: `Date.ISO8601FormatStyle` is Foundation's, which on Apple
+platforms means the *OS's*, so "it parses six fraction digits with a colon-separated offset"
+is a claim about a parser we do not ship. It is verified on the build toolchain and on
+iOS 18.2 — two major versions below it — but **not** on the iOS 17 floor, for which no
+simulator runtime is installed. Running the suite against the oldest available runtime is
+therefore part of the CI item in <doc:Roadmap>, not an optional extra.
+
 `encode(_:)` writes fractional seconds. Writing seconds only — which it used to do
 unconditionally — made `decode(encode(date))` lossy for any `Date` with sub-second
 precision.
@@ -144,6 +151,11 @@ Prices cross the wire as decimal strings, and `openapi.yaml` pins every one of t
 `^-?[0-9]{1,14}(\.[0-9]{0,4})?$`. `Double.init?(wireDecimalString:)` checks that shape and
 then parses with the locale-independent `Double.init(_: String)`; the `en_US`
 `FloatingPointFormatStyle` is used only for **writing**.
+
+Reader and writer accept the same set — both four fraction digits — because anything else
+makes a round trip lossy *inside* the contract: with the writer capped at two, `"12.3456"`
+read back exactly and then wrote out as `"12.35"`. Trailing zeros are still dropped, so
+ordinary two-decimal money is unchanged.
 
 Checking the pattern rather than trusting a parser is the decision. We own the document, so
 it *is* the definition of a well-formed amount — and the parser is worse than useless here:

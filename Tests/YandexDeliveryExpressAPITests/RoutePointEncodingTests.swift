@@ -52,6 +52,52 @@ struct RoutePointEncodingTests {
         #expect(first["pointId"] == nil)
     }
 
+    @Test("A request timestamp goes out in the shape the document documents")
+    func encodesRequestTimestamp() async throws {
+        // The request side of the transcoder, which nothing else covers. `encode` now writes
+        // fractional seconds — the fix for a lossy round trip — and that changed what
+        // `OfferRequirements.due` looks like on the wire. If Yandex turns out to be strict
+        // about this field, this is the test that says what we send.
+        let recorder = RequestRecorder()
+        let client = try Client.recording(recorder: recorder)
+        let due = Date(timeIntervalSince1970: 1_754_555_534.822)
+        let request = Components.Schemas.OffersCalculateRequest(
+            routePoints: .exampleMoscowRoute,
+            requirements: .init(due: due)
+        )
+
+        _ = try await client.calculateOffers(headers: .init(acceptLanguage: .ru), body: .json(request))
+
+        let body = try #require(await recorder.requestBody)
+        let json = try #require(try JSONSerialization.jsonObject(with: Data(body.utf8)) as? [String: Any])
+        let requirements = try #require(json["requirements"] as? [String: Any])
+        let encoded = try #require(requirements["due"] as? String)
+
+        #expect(encoded == "2025-08-07T08:32:14.822Z")
+        // And it survives the trip back, which is the point of writing the fraction at all.
+        #expect(try FlexibleISO8601Transcoder().decode(encoded) == due)
+    }
+
+    @Test("A body-less POST carries no Content-Type")
+    func bodylessOperationsSendNoContentType() async throws {
+        // `getClaimInfo` and `getClaimCancelInfo` are POSTs with no request body, so the
+        // generator sets no `Content-Type` for them. Deleting the middleware's global header
+        // therefore changed these two operations and not the others — correct HTTP, but
+        // nothing else offline would notice if it regressed in either direction.
+        let recorder = RequestRecorder()
+        let client = try Client.recording(recorder: recorder, json: Fixture.claimResponseJSON)
+
+        _ = try await client.getClaimInfo(
+            query: .init(claimId: "741cedf82cd464fa6fa16d87155c636"),
+            headers: .init(acceptLanguage: .ru)
+        )
+
+        let request = try #require(await recorder.request)
+        #expect(request.method == .post)
+        #expect(await recorder.requestBody == nil)
+        #expect(request.headerFields[.contentType] == nil)
+    }
+
     @Test("Nil optionals are omitted rather than sent as null")
     func omitsNilOptionals() async throws {
         // The sample app relies on this to "save traffic", and Yandex rejects some nulls

@@ -207,6 +207,29 @@ value of asking: the source read was right about headers, privacy levels and `.n
 wrong that every path goes through `logger.debug`. Index pinned at `52150c4b`, 0 commits
 behind that repository's HEAD.
 
+## TD-15 — Two request-shape changes are unverified against the real API — **open**
+
+Both are believed correct, both are offline-pinned, and neither can be confirmed without a
+live call. Grouped because they have one discharge: run the live suite before tagging.
+
+1. **The two body-less POSTs now send no `Content-Type`.** `getClaimInfo` and
+   `getClaimCancelInfo` have no request body, so the generator sets no content type for
+   them; deleting the middleware's global `application/json` therefore changed exactly these
+   two operations, which previously carried a header describing a body they do not have.
+   That is the correct HTTP shape, and Yandex may still want the header.
+   `RoutePointEncodingTests.bodylessOperationsSendNoContentType` pins what we now send.
+2. **Request timestamps now carry fractional seconds.** Fixing the lossy `encode` changed
+   `OfferRequirements.due` from `2026-08-07T10:32:14Z` to `2026-08-07T10:32:14.822Z`. Valid
+   ISO-8601 and within the document, but it is the request side, where a strict server is
+   the only thing that can tell us we are wrong.
+   `RoutePointEncodingTests.encodesRequestTimestamp` pins the exact string.
+
+- **Cost:** two ways an otherwise-correct change could break live calls, invisible to every
+  offline test by construction — the offline suite can only assert what we decided to send.
+- **Discharge:** one run of `LiveClientTests` plus one of `LiveMutatingTests` against a real
+  account, before tagging `0.1.0`. Both were found by review rather than by testing, which
+  is the point of the review step.
+
 ## See Also
 
 - <doc:SpecOwnership>

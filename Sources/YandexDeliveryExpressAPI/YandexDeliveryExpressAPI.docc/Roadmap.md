@@ -33,15 +33,24 @@ it is demonstrably synthetic; a door code and one sub-metre coordinate are not o
 ### Add CI
 
 `swift build` and `swift test --skip "Live API"` on push. With the build plugin there is no
-drift check to write — that whole job class disappears (<doc:Design>). Use
-`--build-system swiftbuild` so the String Catalog is actually compiled and the localization
-test runs rather than self-skipping (TD-10).
+drift check to write — that whole job class disappears (<doc:Design>). Two flags matter:
+
+- `--build-system swiftbuild`, so the String Catalog is actually compiled and the
+  localization test runs rather than self-skipping (TD-10).
+- A second job running the suite on the **oldest installed simulator runtime**, because
+  `Date.ISO8601FormatStyle` is the OS's parser and the transcoder's whole design rests on
+  what it accepts (<doc:Design>). Add `-skipPackagePluginValidation` to any `xcodebuild`
+  invocation, or the generator plugin's trust check fails the build non-interactively.
 
 ### Publish
 
 `LICENSE`, `.spi.yml` and `swift-docc-plugin` are in place; what remains is tagging `0.1.0`,
 pushing, and submitting to the Swift Package Index so these articles are readable without
 checking the repository out. Then repoint the sample app from `.package(path:)` to the URL.
+
+**Run the live suite once before tagging.** TD-15 collects two request-shape changes that no
+offline test can validate — the body-less POSTs no longer send `Content-Type`, and request
+timestamps now carry fractional seconds.
 
 ## Next
 

@@ -50,11 +50,25 @@ struct DecimalStringTests {
         #expect((1234.5).wireDecimalString == "1234.5")
         #expect((89990.0).wireDecimalString == "89990")
         #expect((0.5).wireDecimalString == "0.5")
+        // Trailing zeros are dropped, so ordinary money is unaffected by the four-digit cap.
+        #expect((807.60).wireDecimalString == "807.6")
+    }
+
+    @Test("Reader and writer accept the same set")
+    func writerIsNotNarrowerThanReader() throws {
+        // The document permits four fraction digits. When the writer capped at two, this
+        // amount read back exactly and then wrote out as "12.35" — a silently different
+        // number. Reader and writer must agree, or a round trip is lossy inside the
+        // contract.
+        let amount = try #require(Double(wireDecimalString: "12.3456"))
+
+        #expect(amount == 12.3456)
+        #expect(amount.wireDecimalString == "12.3456")
     }
 
     @Test("An amount survives a round trip")
     func roundTripsAmounts() throws {
-        for amount in [0.0, 0.5, 807.6, 89990.0, -1.25] {
+        for amount in [0.0, 0.5, 807.6, 89990.0, -1.25, 12.3456, 0.0001] {
             let text = amount.wireDecimalString
             #expect(Double(wireDecimalString: text) == amount, "round trip of \(amount) via \"\(text)\"")
         }

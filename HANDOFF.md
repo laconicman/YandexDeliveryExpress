@@ -101,6 +101,9 @@ no live test — needs a sandbox account), TD-13 (`newRoutePoint` is view-model 
 - **A trait on `@Suite` cannot reference a static member of the type it is attached to**
   ("circular reference resolving attached macro"). `LiveMutatingTests` puts its gate in a
   file-scope constant.
+- **`xcodebuild` needs `-skipPackagePluginValidation`.** Otherwise the generator plugin's
+  trust check fails the build with "Validate plug-in 'OpenAPIGenerator'" and no useful
+  message — it is Xcode waiting for a click that never comes. `swift build` is unaffected.
 - **The offline fixtures are derived from `openapi.yaml`, not captured.** The repository's
   only live-traffic record, the sample app's Postman collection, stores requests and no
   responses. This is the sharp edge of TD-6, and giving every schema a provenance comment
