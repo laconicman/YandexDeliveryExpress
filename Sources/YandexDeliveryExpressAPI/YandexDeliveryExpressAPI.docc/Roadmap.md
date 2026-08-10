@@ -18,17 +18,10 @@ auth middleware overriding `Content-Type`, a `bodyLoggingConfiguration` argument
 accepted and ignored, and a decimal-string reader that turned `"807,6"` into `807`.
 
 The offline suite is written: decoding, request encoding, the auth middleware, the date
-transcoder, the decimal strings, and the descriptions — twenty-nine tests, no network, no
+transcoder, the decimal strings, and the descriptions — thirty-three tests, no network, no
 credentials.
 
 ## Now
-
-### Decide what happens to `Types+examples.swift`
-
-TD-12, and the only item that should block making this repository public. 452 lines of
-sample route points, contacts and addresses are compiled into the shipping target. Most of
-it is demonstrably synthetic; a door code and one sub-metre coordinate are not obviously so.
-`YooMoneyAPIClient` already made this call once, the hard way.
 
 ### Add CI
 

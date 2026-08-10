@@ -23,7 +23,7 @@ list*; those are the *reasons*. Where they disagree, believe the catalog.
 
 The four independent reasons it did not compile — TD-1 through TD-4 — are discharged, along
 with TD-7 and TD-8. `swift build` succeeds from a clean checkout with no `path:` argument;
-`swift test --skip "Live API"` runs twenty-nine tests with no network and no credentials;
+`swift test --skip "Live API"` runs thirty-three tests with no network and no credentials;
 `swift package generate-documentation --target YandexDeliveryExpressAPI` renders all five
 articles with no unresolved links.
 
@@ -44,49 +44,27 @@ Each is one commit, in order, on top of a skeleton commit and a pure-rename comm
 
 ## What is left
 
-In `Roadmap.md` order. Nothing here blocks anything else except the first item.
+In `Roadmap.md` order.
 
-### 1. Decide `Types+examples.swift` — TD-12, needs the author
+**Settled since this file was last written:** TD-12 is discharged — the author confirms the
+sample addresses are fictional, and `Types+examples.swift` moved to
+`Tests/YandexDeliveryExpressAPITests/SampleData.swift`. That hands work to `YandexDostavka`,
+which consumed it in sixteen places including two view models' runtime defaults; see TD-12.
 
-452 lines of sample route points, contacts and addresses compiled into the **shipping**
-target, so they are public API in every consuming app and are already in git history.
-
-Most of it is demonstrably fiction: the names and one phone number are copied from
-`openapi.yaml`'s own `Contact` examples, and every e-mail domain is `example.com` (RFC 2606,
-reserved for documentation). Two entries are not obviously fiction:
-
-- `Address.exampleMoscowOffice` — `Москва, ул Москворечье, 6`, with `doorCode: "301К"`,
-  `sflat: "301"`, `sfloor: "3"`, `porch: "А"`.
-- `Address.exampleMoscowApartment` — `Москва, Каширское шоссе, 52`,
-  `coordinates: [37.668176, 55.646068]`, `sflat: "15"`, `sfloor: "1"`.
-
-The coordinate is to six decimal places — sub-metre — where the other three examples use
-four and point at city-centre landmarks unrelated to their own street addresses. The two
-addresses are about a kilometre apart in the same Moscow district. A door code is the single
-most sensitive field the API has.
-
-`YooMoneyAPIClient` made this call already, the hard way: its `Migration` article records
-that the equivalent fixtures "embedded a real person's email address and INN in the binary of
-every app that linked this package", and they now live in its test target.
-
-**Do this before the repository is public.** Either move the file to
-`Tests/YandexDeliveryExpressAPITests/Fixtures.swift`, or keep it behind `#if DEBUG` with the
-door code and the precise coordinate replaced.
-
-### 2. CI
+### 1. CI
 
 `swift build` and `swift test --skip "Live API"` on push. Use
 `--build-system swiftbuild` so the String Catalog is compiled and the localization
 regression test runs instead of self-skipping (TD-10). With the build plugin there is no
 drift check to write.
 
-### 3. Publish
+### 2. Publish
 
 Tag `0.1.0`, push, submit to the Swift Package Index. Then repoint `YandexDostavka` from
 `.package(path:)` to the URL — see its own `HANDOFF.md`, and note that the app must commit
 its `Package.resolved` while this package must not.
 
-### 4. Everything else
+### 3. Everything else
 
 `Roadmap.md` → Next and Later, and the open register: TD-5 (`value1`/`value2`), TD-9 (spec
 drafts in the sample-app repo), TD-10 (SwiftPM and `.xcstrings`), TD-11 (`acceptClaim` has

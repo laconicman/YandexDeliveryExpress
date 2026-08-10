@@ -12,8 +12,8 @@ the second is the only thing that validates a hand-authored spec, and it is expe
 (`TechDebt.md` TD-6).
 
 ```console
-% swift test --skip "Live API"                       # CI default — 29 tests, no network
-% AUTH_TOKEN=… swift test                            # adds the read-only live suite
+% swift test --skip "Live API"                       # CI default — 33 tests, no network
+% AUTH_TOKEN=… swift test                            # adds the read-only and unauthenticated live suites
 % AUTH_TOKEN=… YDE_ALLOW_MUTATING_LIVE_TESTS=1 \
     swift test --filter "Live API (mutating)"        # creates and cancels a real claim
 % swift test --build-system swiftbuild               # also runs the localization test (TD-10)
@@ -29,6 +29,7 @@ the second is the only thing that validates a hand-authored spec, and it is expe
 |---|---|---|---|
 | `Tags.swift` | — | — | `.live`, `.mutating`, `.specContract`, `.regression` |
 | `Fixtures.swift` | — | — | `StubTransport`, `RecordingTransport` + `RequestRecorder` actor, `Client.stubbed` / `.recording`, six response fixtures |
+| `SampleData.swift` | — | — | Request-side samples — route points, contacts, cargo items (moved out of the shipping target, TD-12) |
 | `ClaimDecodingTests.swift` | Claim decoding | `.specContract` | The document made falsifiable offline |
 | `RoutePointEncodingTests.swift` | Route point encoding | `.specContract` | The bytes that actually leave the process |
 | `DateTranscoderTests.swift` | Date transcoding | `.specContract` | Every wire timestamp shape, and the round trip |
@@ -111,8 +112,6 @@ discussion — no data either way yet, because nothing has run this live.
   to clean up after itself. Needs a sandbox account, not a better guardrail.
 - **No offline test asserts a header the generator sets** beyond `Content-Type`. If a future
   operation adds a required header, nothing offline will notice it going missing.
-- **`Types+examples.swift` is still in the library target** — TD-12. Whether it moves here is
-  the open question in `HANDOFF.md`; if it does, this file is where it lands.
 - **No CI runs any of this yet** — `Roadmap.md` → Now.
 
 ## Sample app — `YandexDostavka`

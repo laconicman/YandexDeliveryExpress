@@ -50,7 +50,7 @@ resolve against, and the `.undocumented` case wrote `Payload: payload` as litera
 `@testable import YooMoneyAPI`, payments.
 
 - **Discharged by:** `b863b2e` (delete) and `abc3fdd` / `2243b54` (the suites in
-  <doc:TechDebt>'s companion test plan). Twenty-nine offline tests run with no network and
+  <doc:TechDebt>'s companion test plan). Thirty-three offline tests run with no network and
   no credentials.
 
 ## TD-5 — `value1` / `value2` is public API — **open**
@@ -136,7 +136,27 @@ promise to clean up after itself.
 - **Discharge:** a Yandex Delivery sandbox or test account where acceptance costs nothing.
   This is an account question, not a code one.
 
-## TD-12 — Sample data ships inside the library target — **open**
+## TD-12 — Sample data shipped inside the library target — **discharged**
+
+The author confirms the addresses, names, phone numbers and e-mail addresses are **fictional**.
+`Types+examples.swift` moved to `Tests/YandexDeliveryExpressAPITests/SampleData.swift` and
+lost its `public`, so 452 lines of sample data are no longer public API compiled into every
+consuming app. The provenance is recorded in the file's header rather than left for the next
+reader to re-litigate — as it was here, twice, by two reviewers.
+
+**This hands work to `YandexDostavka`.** The sample app was the only consumer, in sixteen
+places: fourteen `#Preview` blocks, and — less obviously — `CalculateOffersViewModel` and
+`CreateClaimViewModel`, whose `setupDefaults()` prefills the demo's forms from
+`.exampleSimpleRoute` / `.exampleSmallOrder` at *runtime*. The app must declare its own,
+which is where they belonged anyway: prefilled form state is presentation, and this is the
+same argument as TD-13. Nothing is lost — `git show 0eb35cb:Sources/YandexDeliveryExpressAPI/Types+examples.swift`
+is the file to copy from.
+
+The package is unreleased, so this breaks no published API.
+
+<details><summary>The original entry, kept because the reasoning is the point</summary>
+
+### Sample data ships inside the library target — was **open**
 
 `Types+examples.swift` (452 lines) is compiled into the shipping target, so its route
 points, contacts and cargo items are `public` API in every app that links this package.
@@ -161,6 +181,8 @@ now live in its test target.
   either move the file to `Tests/…/Fixtures.swift` (the YooMoney precedent) or keep it in the
   target behind `#if DEBUG` with the door code and precise coordinates replaced. **Do before
   the repository is made public.**
+
+</details>
 
 ## TD-13 — `Types+.swift` puts view-model logic in a transport library — **open**
 
