@@ -50,25 +50,30 @@ struct DecimalStringTests {
         #expect((1234.5).wireDecimalString == "1234.5")
         #expect((89990.0).wireDecimalString == "89990")
         #expect((0.5).wireDecimalString == "0.5")
-        // Trailing zeros are dropped, so ordinary money is unaffected by the four-digit cap.
+        // Trailing zeros are dropped, which is why two fraction digits is not two decimals.
         #expect((807.60).wireDecimalString == "807.6")
     }
 
-    @Test("Reader and writer accept the same set")
-    func writerIsNotNarrowerThanReader() throws {
-        // The document permits four fraction digits. When the writer capped at two, this
-        // amount read back exactly and then wrote out as "12.35" — a silently different
-        // number. Reader and writer must agree, or a round trip is lossy inside the
-        // contract.
+    @Test("The reader is liberal and the writer is conservative, on purpose")
+    func readerAcceptsMorePrecisionThanTheWriterEmits() throws {
+        // Not a defect — a deliberate asymmetry, pinned here so it cannot be "fixed" by
+        // someone who meets it without the reasoning. The reader must cope with whatever
+        // Yandex actually sends, so it accepts the four fraction digits the document's
+        // pattern permits. The writer emits the two that the client which was talking to the
+        // live API before this rewrite emitted, because only a real request can establish
+        // that four is accepted, and money is two digits anyway.
+        //
+        // If this ever needs to change, the trigger is a live request, not a symmetry
+        // argument. See `DecimalStrings.swift` and the Design article.
         let amount = try #require(Double(wireDecimalString: "12.3456"))
 
         #expect(amount == 12.3456)
-        #expect(amount.wireDecimalString == "12.3456")
+        #expect(amount.wireDecimalString == "12.35")
     }
 
-    @Test("An amount survives a round trip")
+    @Test("An amount at the precision we send survives a round trip")
     func roundTripsAmounts() throws {
-        for amount in [0.0, 0.5, 807.6, 89990.0, -1.25, 12.3456, 0.0001] {
+        for amount in [0.0, 0.5, 807.6, 89990.0, -1.25, 0.01] {
             let text = amount.wireDecimalString
             #expect(Double(wireDecimalString: text) == amount, "round trip of \(amount) via \"\(text)\"")
         }

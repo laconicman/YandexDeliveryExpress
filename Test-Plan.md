@@ -77,6 +77,25 @@ replace the fixture and say where it came from.
   `Bundle.module.localizations.contains("ru")`: under SwiftPM's native build system the
   String Catalog is copied uncompiled and the translations do not exist to assert (TD-10).
 
+## Open question: the bounded retry in the mutating cleanup
+
+`LiveMutatingTests.cancel(_:_:with:)` makes one cancellation attempt and, if it fails,
+re-reads the claim for a fresh `version` and tries exactly once more.
+
+**For:** the version moves server-side as the claim progresses, so a stale one is the
+*expected* race, and the cost of losing it is a billable claim rather than a red test.
+
+**Against:** a retry in a cleanup path can launder a systematic failure — an already-accepted
+claim, a token without the scope, a changed endpoint — into something that looks transient,
+at the price of two requests and a more confusing log.
+
+It is capped at one, and it re-reads rather than blindly repeating, so a second failure is
+evidence about something other than the version. **Resolve it with data, on the first real
+run:** if the retry never fires, delete it; if it fires and succeeds, the race is real and
+belongs in `Design.md`; if it fires and fails, the first rejection was never about the
+version and the helper is answering the wrong question. Raised with Devin in the PR-1
+discussion — no data either way yet, because nothing has run this live.
+
 ## Gaps, deliberate and otherwise
 
 - **`acceptClaim` has no live test** — TD-11. Accepting starts the real courier search and is

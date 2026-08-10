@@ -30,20 +30,28 @@ private func isWireDecimal(_ string: String) -> Bool {
     return parts[1].count <= 4 && isDigits(parts[1])
 }
 
-/// How amounts are written: a dot separator, no grouping, and **the same four fraction
-/// digits the pattern above permits**. Pinned to `en_US` so a device in a comma-decimal
-/// locale cannot emit `"807,6"` and have the API reject it.
+/// How amounts are written: a dot separator, no grouping, and **at most two** fraction
+/// digits. Pinned to `en_US` so a device in a comma-decimal locale cannot emit `"807,6"` and
+/// have the API reject it.
 ///
-/// The four matters. This used to cap at two, inherited from the deleted
-/// `Client.floatingPointFormatStyle`, which made the reader wider than the writer: an amount
-/// the document allows — `"12.3456"` — read back exactly and then wrote out as `"12.35"`,
-/// silently changing it. Reader and writer now accept and emit the same set, so a value that
-/// survives one survives the other. Trailing zeros are still dropped, so ordinary
-/// two-decimal money is unchanged: `807.60` writes as `"807.6"`.
+/// The reader above accepts four fraction digits and this writer emits two, and that
+/// asymmetry is deliberate rather than an oversight — be liberal in what you accept,
+/// conservative in what you send. The reader has to cope with whatever Yandex actually puts
+/// on the wire; the writer should emit only the shape a real request is known to have been
+/// accepted in, and this cap is carried over verbatim from the client that was talking to
+/// the live API before this rewrite. Amounts here are money, where two digits is the
+/// meaningful precision; the document's four is the pattern being loose, not an invitation.
+///
+/// **The consequence, stated so nobody has to rediscover it:** an amount with three or four
+/// fraction digits — which the document permits and the reader accepts exactly — is rounded
+/// when written back. `"12.3456"` reads as `12.3456` and writes as `"12.35"`. Nothing in
+/// this API asks a caller to echo a price back, so no call site hits it today; if one ever
+/// does, widening this cap is the fix and it needs a live request to confirm Yandex accepts
+/// four digits before it lands.
 private let wireDecimalStyle = FloatingPointFormatStyle<Double>(locale: Locale(identifier: "en_US"))
     .decimalSeparator(strategy: .automatic)
     .grouping(.never)
-    .precision(.fractionLength(0...4))
+    .precision(.fractionLength(0...2))
 
 public extension Double {
     /// Reads one of the decimal strings the API uses in place of a number.

@@ -19,6 +19,31 @@ papers over it. See <doc:SpecOwnership> for what that obligates in return.
 **Rejected:** porting `SpecSync`. A tool that normalises an upstream document is pure cost
 when there is no upstream document to normalise (YAGNI).
 
+## Wire behaviour that works is replicated, not reasoned about
+
+The standing rule for this package, and the one that overrides tidiness arguments: **when
+existing code sends a particular shape and that shape is known to have worked against the
+real API, replicate it and document the question. Only a real request can settle what Yandex
+accepts.**
+
+This exists because Yandex is not disciplined about the standards it claims to implement.
+It says ISO-8601 and does not reliably emit it. Its own document pins amounts to a pattern
+four fraction digits wide while the client that actually worked sent two. In that
+environment, a change to what we *send*, justified by symmetry or elegance or a specification
+we wrote ourselves, is a guess wearing a proof's clothing — and the feedback arrives as a
+failed delivery rather than a failed test.
+
+It cuts both ways, and the asymmetry is the point:
+
+- **Reading** is where to be liberal and where inference is cheap. A parser that accepts
+  more than it needs to costs nothing when it is wrong.
+- **Writing** is where to be conservative. Keep what shipped, write down what the
+  alternative would be and what evidence would justify it, and change it when a live call
+  says so — <doc:TechDebt> TD-15 exists to collect exactly those pending questions.
+
+Two decisions below follow from this rule rather than from first principles: the
+two-fraction-digit writer, and the fallback ladder in the date transcoder.
+
 ## Generated code is not committed
 
 The **build plugin** generates `Client.swift` and `Types.swift` into the build directory on
@@ -134,6 +159,25 @@ The rule that produced this stands: a parse path is justified only by a wire sha
 actually emits, each pinned by an argument of `DateTranscoderTests.parsesWireTimestamp` with
 a citation. A rung no test names is dead code, and deleting it is the point of measuring.
 
+**Where the deleted ladder came from, because it was not written down and nearly got lost.**
+Those `DateFormatter` rungs were not defensive programming. They were the result of trial and
+error against the real API: Yandex claims to emit ISO-8601 and does not reliably honour it,
+so each rung was somebody guessing at what a real response meant and keeping what worked.
+That provenance matters twice over. It is why the ladder deserved more respect than "a
+fallback with no test", and it is why the replacement is not as safe as its line count
+suggests — two `Date.ISO8601FormatStyle` instances cover every shape the ladder did, but they
+do it by leaning on Foundation's *undocumented tolerance*: that a style built with
+`includingFractionalSeconds: true` also parses timestamps without a fraction, that it accepts
+six fraction digits, and that it accepts `+03:00` when its own default separator is omitted.
+None of that is contractual, and an explicit `dateFormat` string is deterministic where this
+is merely observed.
+
+The trade is taken deliberately — simpler, tested, and measured two OS versions below the
+build host — but the trigger for revisiting it is specific: **a decode failure on a real
+response means the tolerance moved, and the answer is to restore an explicit formatter for
+the shape that broke, not to widen a guess.** The deleted ladder is one `git show b863b2e^`
+away, and now carries its reasoning with it.
+
 One caveat this design takes on: `Date.ISO8601FormatStyle` is Foundation's, which on Apple
 platforms means the *OS's*, so "it parses six fraction digits with a colon-separated offset"
 is a claim about a parser we do not ship. It is verified on the build toolchain and on
@@ -152,10 +196,18 @@ Prices cross the wire as decimal strings, and `openapi.yaml` pins every one of t
 then parses with the locale-independent `Double.init(_: String)`; the `en_US`
 `FloatingPointFormatStyle` is used only for **writing**.
 
-Reader and writer accept the same set — both four fraction digits — because anything else
-makes a round trip lossy *inside* the contract: with the writer capped at two, `"12.3456"`
-read back exactly and then wrote out as `"12.35"`. Trailing zeros are still dropped, so
-ordinary two-decimal money is unchanged.
+The reader accepts the four fraction digits the pattern permits; the writer emits two. That
+asymmetry is deliberate — **be liberal in what you accept, conservative in what you send.**
+The reader has to survive whatever Yandex actually puts on the wire. The writer should emit
+only a shape a real request is known to have been accepted in, and two is what the client
+that was talking to the live API before this rewrite emitted. Money is two digits anyway;
+the document's four is the pattern being loose, not an invitation.
+
+The consequence is stated rather than hidden: an amount with three or four fraction digits
+reads exactly and writes back rounded. Nothing in this API asks a caller to echo a price
+back, so no call site hits it; `DecimalStringTests` pins the asymmetry so it cannot be
+"corrected" by a symmetry argument. Widening the writer needs a live request proving Yandex
+accepts four digits — see the standing rule below.
 
 Checking the pattern rather than trusting a parser is the decision. We own the document, so
 it *is* the definition of a well-formed amount — and the parser is worse than useless here:

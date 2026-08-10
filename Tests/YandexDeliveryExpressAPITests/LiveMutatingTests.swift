@@ -108,6 +108,32 @@ struct LiveMutatingTests {
 
     /// One cancellation attempt, then — if the version was the problem — one retry with the
     /// version re-read from the API. Returns whether the claim ended up cancelled.
+    ///
+    /// ## Why one retry, and the open question
+    ///
+    /// A cancellation carries the claim's `version`, and a claim's version moves on its own
+    /// as it progresses `new → estimating → ready_for_approval` server-side. So the version
+    /// read a moment ago can be stale by the time the cancellation lands — a race that is
+    /// *expected* here rather than exceptional, and the failure it produces costs money
+    /// rather than a red test. Re-reading and trying once directly addresses that cause.
+    ///
+    /// The argument against, which is not weak: a retry in a cleanup path can launder a
+    /// systematic failure into a transient-looking one. If cancellation is failing for a
+    /// structural reason — the claim is already accepted, the token lacks the scope, the
+    /// endpoint changed — we now issue two requests and report the same failure, having
+    /// made the log twice as confusing and taken twice as long to get there.
+    ///
+    /// It is bounded at exactly one retry for that reason: enough to beat the race, too few
+    /// to look like resilience. The retry also deliberately re-reads rather than blindly
+    /// repeating, so a second failure is evidence about something other than the version.
+    ///
+    /// **Open question for whoever runs this against a real account first.** Collect what
+    /// actually fails. If the retry never fires, delete it — it is speculative machinery in
+    /// a path that must stay legible. If it fires and *succeeds*, it has earned its place
+    /// and the version race is real and worth naming in the Design article. If it fires and
+    /// fails, that is the interesting case: the first attempt's rejection was never about
+    /// the version, and this helper is answering the wrong question. Asked of Devin in the
+    /// PR-1 discussion; no data either way yet, because nothing has run this live.
     @discardableResult
     private func cancel(
         _ claimId: String,

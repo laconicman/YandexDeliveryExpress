@@ -50,6 +50,14 @@ Render: `swift package generate-documentation --target YandexDeliveryExpressAPI`
    transport and decoding failures are thrown `ClientError`. Do not collapse them.
 9. **Reference a debt item from code** as `// TODO(TD-n): …` so the marker and the register
    stay linked.
+10. **Replicate wire behaviour that works; change it only on evidence.** Yandex is not
+    disciplined about the standards it claims to implement — it says ISO-8601 and does not
+    reliably emit it. When existing code sends a shape that worked against the real API,
+    keep it and document the question rather than "correcting" it toward the specification
+    or toward symmetry. Be liberal in what you accept and conservative in what you send;
+    inference is cheap when reading and expensive when writing. Pending questions of this
+    kind go in `TechDebt` (TD-15), to be settled by a live call before tagging. See
+    `Design` → "Wire behaviour that works is replicated, not reasoned about".
 
 ## Author's standing preferences
 
