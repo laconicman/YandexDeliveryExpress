@@ -9,6 +9,11 @@ extension Tag {
     /// is wrong or Yandex changed — see the `SpecOwnership` article.
     @Tag static var specContract: Self
 
+    /// Changes server-side state — creates a claim that a real account will see. Needs
+    /// `YDE_ALLOW_MUTATING_LIVE_TESTS=1` **on top of** `AUTH_TOKEN`, so that pointing a
+    /// token at this suite is never enough on its own.
+    @Tag static var mutating: Self
+
     /// Pins a bug that shipped. Deleting one of these needs a reason.
     @Tag static var regression: Self
 }
