@@ -28,7 +28,7 @@ README disagree, believe the catalog. Build it with
 ## Installation
 
 ```swift
-.package(url: "https://github.com/laconicman/YandexDeliveryExpressAPI", from: "0.1.0")
+.package(url: "https://github.com/laconicman/YandexDeliveryExpress", from: "0.1.0")
 ```
 
 Requires Swift 6.1 or newer, and iOS 17 / macOS 14 / tvOS 17 / watchOS 10 / visionOS 1.
