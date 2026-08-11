@@ -43,6 +43,36 @@ struct LiveClientTests {
         #expect(total > 0)
     }
 
+    @Test("A request timestamp we send is one the API accepts")
+    func acceptsAFractionalSecondTimestamp() async throws {
+        // Half of TD-15, for *this operation only*. `calculateOffers` is read-only, so
+        // sending a `due` costs nothing — and until this runs green, "requests now carry
+        // fractional seconds" is a change nothing has validated.
+        //
+        // **This does not generalise.** The API uses different timestamp formats in
+        // different operations, in both directions, so a `due` that `offers/calculate`
+        // accepts says nothing about what `claims/create` wants. See TD-16.
+        let client = try liveClient()
+        let due = Calendar.current.date(byAdding: .hour, value: 2, to: Date())
+        let request = Components.Schemas.OffersCalculateRequest(
+            routePoints: .exampleMoscowRoute,
+            items: .exampleSmallOrder,
+            requirements: .init(cargoLoaders: 1, due: due, proCourier: true, taxiClasses: [.express])
+        )
+
+        let response = try await client.calculateOffers(
+            headers: .init(acceptLanguage: .ru),
+            body: .json(request)
+        )
+
+        // A 400 here is the finding, not a flake: it means the fractional-second `due` we
+        // now emit is not what this endpoint wants.
+        if case .badRequest(let error) = response {
+            Issue.record("`due` with fractional seconds was rejected: \((try? error.body.json.message) ?? "?")")
+        }
+        #expect((try? response.ok.body.json.offers) != nil)
+    }
+
     @Test("Every read operation decodes, and records rather than fails when it does not")
     func decodeReviewSweep() async throws {
         // The highest-value live test for an owned specification: it turns "Yandex changed

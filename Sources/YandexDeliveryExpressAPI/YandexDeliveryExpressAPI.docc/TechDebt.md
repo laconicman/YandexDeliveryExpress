@@ -251,6 +251,57 @@ live call. Grouped because they have one discharge: run the live suite before ta
 - **Discharge:** one run of `LiveClientTests` plus one of `LiveMutatingTests` against a real
   account, before tagging `0.1.0`. Both were found by review rather than by testing, which
   is the point of the review step.
+- **Scope, per TD-16:** this cannot be discharged once and applied everywhere. Timestamp
+  formats differ per operation, so item 2 needs evidence from *each* operation that sends a
+  `date-time` — `calculateOffers` (`due`) and `createClaim` (`due`, and `due` inside
+  `ClientRequirements`) at minimum. `LiveClientTests.acceptsAFractionalSecondTimestamp`
+  covers the first and says so in as many words. Item 1 is narrower: only two operations
+  send no body at all, so confirming those two settles it.
+
+## TD-16 — Timestamp formats differ *per operation*, in both directions — **obligation**
+
+Reported by the author from live debugging, and it is the most important thing in this file
+that no test can currently show: **this API does not use one timestamp format.** Different
+operations send and return different shapes, in requests and in responses, despite all of
+them being described as ISO-8601.
+
+The whole client contradicts that. `FlexibleISO8601Transcoder` is installed once, on the
+`Configuration`, so swift-openapi-generator applies it to *every* `date-time` field in every
+operation — one reader and one writer for a surface that is not uniform. It works so far
+because the reader is permissive; the writer is the exposure, since it emits one shape
+everywhere.
+
+- **Cost:** every conclusion about timestamps is operation-scoped, and nothing in the type
+  system says so. A green live test for `offers/calculate` does not license a claim about
+  `claims/create`, and TD-15 must therefore be discharged **per operation** rather than
+  once. The fixtures cannot help — they are derived from a document that describes the
+  format uniformly, which is itself now suspect (<doc:SpecOwnership>).
+- **Discharge:** not a fix, an obligation. As live evidence arrives, record the observed
+  format for each operation and direction against the schema in `openapi.yaml`, per the
+  provenance-comment item in <doc:Roadmap>. If two operations genuinely disagree, a single
+  `DateTranscoder` is the wrong shape and the answer is per-field coding rather than a
+  cleverer transcoder — one more reason the fallback ladder deserved its reputation
+  (<doc:Design>).
+
+## What one live run has actually established
+
+Recorded here because it is the first real-response evidence this package has ever had, and
+because the register should say what is *known* as well as what is owed.
+
+Run 2026-08-12 against the production endpoint with a token that turned out to be expired.
+The call returned **401 with `{"code": "unauthorized", "message": "Access denied"}`**, which
+confirms more than it looks:
+
+- The server URL in `openapi.yaml` resolves and answers.
+- `AuthMiddleware` produces a header the server parses — it refuses the *credential*, not
+  the request shape.
+- **`ErrorResponse` decodes from a real response.** The shared `{code, message}` body is no
+  longer only a claim of the document; one schema is now evidence-backed.
+- A documented non-2xx arrives as a case rather than a throw, against the real API, which is
+  the two-channel rule holding outside the stub transport.
+
+It establishes nothing about TD-15: a 401 is decided before a body or its `Content-Type` is
+examined.
 
 ## See Also
 

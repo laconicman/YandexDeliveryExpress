@@ -178,6 +178,15 @@ response means the tolerance moved, and the answer is to restore an explicit for
 the shape that broke, not to widen a guess.** The deleted ladder is one `git show b863b2e^`
 away, and now carries its reasoning with it.
 
+**The larger caveat, and it undercuts the shape of this type rather than its details:** the
+API does not use one timestamp format. Different operations send and return different shapes,
+in both directions, despite the document describing them uniformly — reported from live
+debugging and recorded as <doc:TechDebt> TD-16. A `DateTranscoder` is installed once on the
+`Configuration` and therefore applies to every `date-time` field in every operation, so this
+package answers a non-uniform surface with a uniform rule. Reading survives that because the
+reader is permissive; **writing is the exposure**, since `encode` emits one shape everywhere.
+Treat every timestamp conclusion as scoped to the operation that produced it.
+
 One caveat this design takes on: `Date.ISO8601FormatStyle` is Foundation's, which on Apple
 platforms means the *OS's*, so "it parses six fraction digits with a colon-separated offset"
 is a claim about a parser we do not ship. It is verified on the build toolchain and on
