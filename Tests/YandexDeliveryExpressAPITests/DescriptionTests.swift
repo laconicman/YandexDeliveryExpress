@@ -59,6 +59,10 @@ struct DescriptionTests {
 
         #expect(String(localized: "Free", bundle: russian) == "бесплатная")
         #expect(String(localized: "Unknown error", bundle: russian) == "Неизвестная ошибка")
+        // The response-side enum has its own keys rather than sharing `CancelState`'s, so
+        // the two can be worded differently later. Same translation today, separate entries.
+        #expect(String(localized: "cancelInfo.unavailable", defaultValue: "Unavailable", bundle: russian) == "недоступна")
+        #expect(String(localized: "cancelInfo.free", defaultValue: "Free", bundle: russian) == "бесплатная")
         // And the call site reads from the same bundle the catalog is in.
         #expect(Components.Schemas.CancelState.free.description == String(localized: "Free", bundle: .module))
     }

@@ -200,10 +200,18 @@ extension Components.Schemas.CancelState: CustomStringConvertible {
 /// `.unavailable`; the document is explicit that the two must not be confused.
 extension Components.Schemas.CancelInfoCancelState: CustomStringConvertible {
     public var description: String {
+        // Its own keys, with `defaultValue` carrying the English. Sharing `"Free"` / `"Paid"`
+        // with `CancelState` would have read as tidy and quietly welded the two enums
+        // together: a String Catalog stores one comment per key, so the two `comment:`
+        // strings would conflict, and neither wording could ever diverge from the other —
+        // in the one place this package insists they are different things.
         switch self {
-        case .free: String(localized: "Free", bundle: #bundle, comment: "Components.Schemas.CancelInfoCancelState")
-        case .paid: String(localized: "Paid", bundle: #bundle, comment: "Components.Schemas.CancelInfoCancelState")
-        case .unavailable: String(localized: "Unavailable", bundle: #bundle, comment: "Components.Schemas.CancelInfoCancelState")
+        case .free:
+            String(localized: "cancelInfo.free", defaultValue: "Free", bundle: #bundle, comment: "Components.Schemas.CancelInfoCancelState")
+        case .paid:
+            String(localized: "cancelInfo.paid", defaultValue: "Paid", bundle: #bundle, comment: "Components.Schemas.CancelInfoCancelState")
+        case .unavailable:
+            String(localized: "cancelInfo.unavailable", defaultValue: "Unavailable", bundle: #bundle, comment: "Components.Schemas.CancelInfoCancelState")
         }
     }
 }

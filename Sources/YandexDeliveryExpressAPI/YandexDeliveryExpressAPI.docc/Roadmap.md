@@ -26,7 +26,15 @@ credentials.
 ### Add CI
 
 `swift build` and `swift test --skip "Live API"` on push. With the build plugin there is no
-drift check to write — that whole job class disappears (<doc:Design>). Two flags matter:
+drift check to write — that whole job class disappears (<doc:Design>).
+
+**`--skip "Live API"` is the only thing that guarantees an offline run**, and CI must encode
+it rather than rely on credentials being absent. Three suites carry that prefix, and one of
+them — `Live API (unauthenticated)` — reaches the network whenever `AUTH_TOKEN` merely
+*exists*, deliberately, because it needs no valid account. A runner with a token in its
+environment and no `--skip` makes real calls.
+
+Two more flags matter:
 
 - `--build-system swiftbuild`, so the String Catalog is actually compiled and the
   localization test runs rather than self-skipping (TD-10).

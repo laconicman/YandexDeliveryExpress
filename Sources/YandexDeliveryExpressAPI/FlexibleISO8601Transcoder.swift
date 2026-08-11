@@ -19,6 +19,10 @@ struct FlexibleISO8601Transcoder: DateTranscoder {
     private static let withoutFractionalSeconds = Date.ISO8601FormatStyle(includingFractionalSeconds: false, timeZone: .gmt)
 
     func decode(_ dateString: String) throws -> Date {
+        // Order is load-bearing, not cosmetic: fractional first. If the plain style went
+        // first and turned out to tolerate a trailing fraction, every sub-second timestamp
+        // would decode successfully and *silently* lose its milliseconds — a wrong answer
+        // rather than a failure. Do not reorder these for tidiness.
         if let date = try? Self.withFractionalSeconds.parse(dateString) {
             return date
         }

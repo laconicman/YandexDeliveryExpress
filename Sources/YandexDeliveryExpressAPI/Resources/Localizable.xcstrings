@@ -100,9 +100,49 @@
         }
       }
     },
-    "Unavailable" : {
+    "cancelInfo.free" : {
       "comment" : "Components.Schemas.CancelInfoCancelState",
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Free"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "бесплатная"
+          }
+        }
+      }
+    },
+    "cancelInfo.paid" : {
+      "comment" : "Components.Schemas.CancelInfoCancelState",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Paid"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "платная"
+          }
+        }
+      }
+    },
+    "cancelInfo.unavailable" : {
+      "comment" : "Components.Schemas.CancelInfoCancelState",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Unavailable"
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
