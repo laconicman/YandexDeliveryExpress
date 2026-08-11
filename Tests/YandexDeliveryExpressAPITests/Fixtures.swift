@@ -63,6 +63,21 @@ struct RecordingTransport: ClientTransport {
     }
 }
 
+/// Fails the way a real network failure does, so the error that reaches the caller is a
+/// `ClientError` carrying whatever context the runtime chose to attach.
+struct FailingTransport: ClientTransport {
+    struct Failure: Error {}
+
+    func send(
+        _ request: HTTPRequest,
+        body: HTTPBody?,
+        baseURL: URL,
+        operationID: String
+    ) async throws -> (HTTPResponse, HTTPBody?) {
+        throw Failure()
+    }
+}
+
 // MARK: - Clients under test
 
 extension Client {

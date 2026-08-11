@@ -11,8 +11,29 @@ only for the sample app's UI automation.
 the second is the only thing that validates a hand-authored spec, and it is expensive
 (`TechDebt.md` TD-6).
 
+### Supplying the credential
+
+The token lives in `~/.yandex-auth-token` — outside every repository, mode `600` — and is
+read into the environment for the length of one command:
+
 ```console
-% swift test --skip "Live API"                       # CI default — 33 tests, no network
+% AUTH_TOKEN="$(cat ~/.yandex-auth-token)" swift test --filter "Live API"
+```
+
+Never paste it into a shell history, a commit, a test fixture or an issue. `.gitignore`
+carries patterns (`*.token`, `*auth-token*`, `.env*`, `secrets.*`, `*.pem`) so that a copy
+made "just for a minute" inside the repository cannot be committed, but the real protection
+is that the only copy lives elsewhere.
+
+`AuthMiddlewareTests.errorsDoNotLeakTheCredential` guards the subtler leak: a `ClientError`
+renders its request through `prettyDescription`, which prints **every header field
+verbatim**. It happens not to carry the `Authorization` header, because
+swift-openapi-runtime attaches the request the *serializer* produced rather than the one the
+middleware chain modified — an implementation detail, not a promise. If that test ever goes
+red, stop running the live suites until it passes again.
+
+```console
+% swift test --skip "Live API"                       # CI default — 34 tests, no network
 % AUTH_TOKEN=… swift test                            # adds the read-only and unauthenticated live suites
 % AUTH_TOKEN=… YDE_ALLOW_MUTATING_LIVE_TESTS=1 \
     swift test --filter "Live API (mutating)"        # creates and cancels a real claim
@@ -34,7 +55,7 @@ the second is the only thing that validates a hand-authored spec, and it is expe
 | `RoutePointEncodingTests.swift` | Route point encoding | `.specContract` | The bytes that actually leave the process |
 | `DateTranscoderTests.swift` | Date transcoding | `.specContract` | Every wire timestamp shape, and the round trip |
 | `DecimalStringTests.swift` | Decimal strings | `.specContract` | Amounts in both directions, and what is *not* an amount |
-| `AuthMiddlewareTests.swift` | Auth middleware | `.regression` | One thing it does, three it must not |
+| `AuthMiddlewareTests.swift` | Auth middleware | `.regression` | One thing it does, three it must not, and the credential it must never leak |
 | `DescriptionTests.swift` | Descriptions | `.regression` | TD-2, under a time limit |
 | `LiveUnauthenticatedTests.swift` | Live API (unauthenticated) | `.live` | The auth path, no account needed |
 | `LiveClientTests.swift` | Live API | `.live` | Read-only, credential-gated |

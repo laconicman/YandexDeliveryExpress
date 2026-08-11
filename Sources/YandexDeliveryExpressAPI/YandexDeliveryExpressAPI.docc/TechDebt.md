@@ -50,7 +50,7 @@ resolve against, and the `.undocumented` case wrote `Payload: payload` as litera
 `@testable import YooMoneyAPI`, payments.
 
 - **Discharged by:** `b863b2e` (delete) and `abc3fdd` / `2243b54` (the suites in
-  <doc:TechDebt>'s companion test plan). Thirty-three offline tests run with no network and
+  <doc:TechDebt>'s companion test plan). Thirty-four offline tests run with no network and
   no credentials.
 
 ## TD-5 — `value1` / `value2` is public API — **open**
