@@ -23,7 +23,7 @@ list*; those are the *reasons*. Where they disagree, believe the catalog.
 
 The four independent reasons it did not compile — TD-1 through TD-4 — are discharged, along
 with TD-7 and TD-8. `swift build` succeeds from a clean checkout with no `path:` argument;
-`swift test --skip "Live API"` runs thirty-four tests with no network and no credentials;
+`swift test --skip "Live API"` runs thirty-five tests with no network and no credentials;
 `swift package generate-documentation --target YandexDeliveryExpressAPI` renders all five
 articles with no unresolved links.
 

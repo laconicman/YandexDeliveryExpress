@@ -18,7 +18,7 @@ auth middleware overriding `Content-Type`, a `bodyLoggingConfiguration` argument
 accepted and ignored, and a decimal-string reader that turned `"807,6"` into `807`.
 
 The offline suite is written: decoding, request encoding, the auth middleware, the date
-transcoder, the decimal strings, and the descriptions — thirty-four tests, no network, no
+transcoder, the decimal strings, and the descriptions — thirty-five tests, no network, no
 credentials.
 
 ## Now
@@ -49,9 +49,12 @@ Two more flags matter:
 pushing, and submitting to the Swift Package Index so these articles are readable without
 checking the repository out. Then repoint the sample app from `.package(path:)` to the URL.
 
-**Run the live suite once before tagging.** TD-15 collects two request-shape changes that no
-offline test can validate — the body-less POSTs no longer send `Content-Type`, and request
-timestamps now carry fractional seconds.
+**The live suite has now been run** (2026-08-12) and TD-15 is discharged: the body-less POSTs
+are accepted without `Content-Type`, and `calculateOffers` accepts and honours a
+fractional-second `due`. It also found an undocumented 409 (TD-17) and an invalid sample
+request (TD-18), both fixed. What remains before tagging is `createClaim`'s own timestamp
+evidence, which needs the mutating suite — per TD-16, `calculateOffers` licenses no claim
+about it.
 
 ## Next
 
@@ -64,8 +67,10 @@ recompiling — including moving `newRoutePoint` out of the library (TD-13).
 
 ### Give every schema a provenance comment
 
-Each schema links to the Yandex reference page it was read from, or is marked as observed on
-the wire. This is the obligation <doc:SpecOwnership> takes on, and it is what makes a future
+Now the highest-value item on this list, because one live run showed what it buys: an
+undocumented 409, a response format the document describes wrongly, and a sample request the
+API refuses — none of which any offline test could have surfaced. Each schema links to the
+Yandex reference page it was read from, or is marked as observed on the wire. This is the obligation <doc:SpecOwnership> takes on, and it is what makes a future
 "did Yandex change this, or did we get it wrong?" answerable. It is also what would let the
 offline fixtures cite a response rather than the document (TD-6).
 

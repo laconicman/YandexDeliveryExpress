@@ -33,7 +33,7 @@ middleware chain modified — an implementation detail, not a promise. If that t
 red, stop running the live suites until it passes again.
 
 ```console
-% swift test --skip "Live API"                       # CI default — 34 tests, no network
+% swift test --skip "Live API"                       # CI default — 35 tests, no network
 % AUTH_TOKEN=… swift test                            # adds the read-only and unauthenticated live suites
 % AUTH_TOKEN=… YDE_ALLOW_MUTATING_LIVE_TESTS=1 \
     swift test --filter "Live API (mutating)"        # creates and cancels a real claim
@@ -72,9 +72,9 @@ header attachment, and a documented 401 arriving as a case rather than a throw �
 
 ### Fixture provenance — read this before adding one
 
-Every fixture in `Fixtures.swift` is derived from `openapi.yaml`'s own `examples:` and
-`required:` blocks, which in turn cite Yandex's reference pages. **None is a captured
-response.** The repository's only live-traffic record — the sample app's
+`offersCalculateResponseJSON` is **captured from the live API** (2026-08-12); a failure
+against it means the client broke. Every other fixture is still derived from `openapi.yaml`'s
+own `examples:` and `required:` blocks, which cite Yandex's reference pages. The repository's only live-traffic record — the sample app's
 `Базовые запросы.postman_collection.json` — stores requests and no responses.
 
 That is the honest limit of this suite, and it is TD-6 with the safety off: a fixture derived

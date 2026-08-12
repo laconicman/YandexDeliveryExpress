@@ -267,8 +267,12 @@ extension Components.Schemas.RoutePointBase {
 // MARK: - Requirements Samples
 
 extension Components.Schemas.OfferRequirements {
+    /// No `cargoLoaders`. The live API rejects loaders on the `express` tariff with
+    /// `409 estimating.too_many_loaders` — «В выбранном кузове не получится заказать столько
+    /// грузчиков» — which is how this fixture was found to be invalid: it had `cargoLoaders: 1`
+    /// and every live call using it failed before reaching anything worth testing. Loaders
+    /// belong to `cargo`; see `exampleCargoDelivery`.
     static let exampleExpressDelivery: Self = .init(
-        cargoLoaders: 1,
         proCourier: true,
         skipDoorToDoor: false,
         taxiClasses: [.express]

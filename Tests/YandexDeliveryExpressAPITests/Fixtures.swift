@@ -118,40 +118,77 @@ extension Operations.CalculateOffers.Input {
 
 // MARK: - Response fixtures
 //
-// Provenance: every field below is taken from the `examples:` and `required:` blocks of
-// `Sources/YandexDeliveryExpressAPI/openapi.yaml`, which in turn cite the Yandex reference
-// pages per schema. They are **not** captured live — the repository's only live-traffic
-// record, `YandexDostavka/Базовые запросы.postman_collection.json`, stores requests and no
-// responses. That is the honest limit of an offline suite: these tests prove the client
-// decodes what the document claims, and only the `Live API` suite proves the claim
-// (see the `SpecOwnership` and `TechDebt` articles, TD-6).
+// Provenance, per fixture, because it decides what a failure means:
+//
+// - `offersCalculateResponseJSON` is **captured from the live API** (2026-08-12). A failure
+//   against it means the client broke, not that the document is wrong.
+// - Every other fixture is still derived from the `examples:` and `required:` blocks of
+//   `openapi.yaml`, which cite Yandex's reference pages. Those prove the client decodes what
+//   the document *claims*; only a live call proves the claim (TD-6). Replace each one with a
+//   capture as evidence arrives, and say so here.
+//
+// The repository's other live-traffic record, `YandexDostavka/Базовые запросы.postman_collection.json`,
+// stores requests and no responses, which is why the document was the only source until now.
 
 enum Fixture {
-    /// `POST /offers/calculate` → 200. Shapes from `OffersCalculateResponse`,
-    /// `CalculatedOffer`, `OfferPrice` and `TimeInterval`.
+    /// `POST /offers/calculate` → 200. **Captured from the live API on 2026-08-12**, not
+    /// derived from the document — the first real response this package has kept.
+    ///
+    /// Two offers out of five, chosen because they differ in a way no document-derived
+    /// fixture would have: the first carries six-digit fractional seconds throughout, the
+    /// second mixes them with timestamps that have **no fraction at all**, in the same
+    /// `TimeInterval` object. The full response held 21 fractional and 4 plain stamps. That
+    /// is TD-16 in one payload, and it is why the transcoder's reader must stay permissive.
+    ///
+    /// Note also `total_price: "1449"` — a monetary string with no decimal point, which the
+    /// document's pattern permits and `Double.init?(wireDecimalString:)` accepts.
+    ///
+    /// The `payload` offer tokens are replaced with zeros: they are short-lived
+    /// capability tokens for `createClaim` and there is no reason to keep real ones.
     static let offersCalculateResponseJSON = #"""
     {
       "offers": [
         {
-          "delivery_interval": {
-            "from": "2020-01-01T07:00:00+00:00",
-            "to": "2020-01-01T19:00:00+00:00"
-          },
-          "pickup_interval": {
-            "from": "2020-01-01T07:00:00+00:00",
-            "to": "2020-01-01T19:00:00+00:00"
-          },
-          "payload": "5e2TPP5f7Yqyv19yRZ+QVas4JK+lhwa17ncxA3VCGI8hvnFS+CIySbmfHQlR6vhC2S4XsW+M7TbEV0EQl1/1Z0PO3QQX8KbGb6rtKay",
           "price": {
-            "currency": "RUB",
-            "surge_ratio": 1.1,
-            "total_price": "673.0",
-            "total_price_with_vat": "807.6",
-            "base_price": "611.8"
+            "total_price": "1449",
+            "total_price_with_vat": "1767.78",
+            "base_price": "1449",
+            "surge_ratio": 2.963775,
+            "currency": "RUB"
           },
           "taxi_class": "express",
-          "description": "express_30min_longer",
-          "offer_ttl": "2020-01-02T00:00:00+00:00"
+          "pickup_interval": {
+            "from": "2026-08-12T17:12:40.051944+00:00",
+            "to": "2026-08-12T17:29:40.051944+00:00"
+          },
+          "delivery_interval": {
+            "from": "2026-08-12T17:12:40.051944+00:00",
+            "to": "2026-08-12T18:15:08.051944+00:00"
+          },
+          "description": "express",
+          "payload": "offer-payload-redis/v1/00000000000000000000000000000000/1",
+          "offer_ttl": "2026-08-12T17:22:40.051944+00:00"
+        },
+        {
+          "price": {
+            "total_price": "1139",
+            "total_price_with_vat": "1389.58",
+            "base_price": "1139",
+            "surge_ratio": 2.329703,
+            "currency": "RUB"
+          },
+          "taxi_class": "express",
+          "pickup_interval": {
+            "from": "2026-08-12T17:12:40.051944+00:00",
+            "to": "2026-08-12T18:15:00+00:00"
+          },
+          "delivery_interval": {
+            "from": "2026-08-12T17:12:40.051944+00:00",
+            "to": "2026-08-12T19:15:00+00:00"
+          },
+          "description": "2_hours_delivery",
+          "payload": "offer-payload-redis/v1/00000000000000000000000000000000/2",
+          "offer_ttl": "2026-08-12T17:22:40.051944+00:00"
         }
       ]
     }

@@ -39,6 +39,7 @@ extension Operations.CalculateOffers.Output: CustomStringConvertible {
         case .ok(let response): (try? response.body.json)?.prettyJSON ?? undecodedJSON
         case .badRequest(let error): message(of: try? error.body.json)
         case .unauthorized(let error): message(of: try? error.body.json)
+        case .conflict(let error): message(of: try? error.body.json)
         case .tooManyRequests(let error): message(of: try? error.body.json)
         case .internalServerError(let error): message(of: try? error.body.json)
         case .undocumented(let statusCode, let payload): undocumentedDescription(statusCode: statusCode, payload: payload)

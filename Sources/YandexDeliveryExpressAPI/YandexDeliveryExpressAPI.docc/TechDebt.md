@@ -50,7 +50,7 @@ resolve against, and the `.undocumented` case wrote `Payload: payload` as litera
 `@testable import YooMoneyAPI`, payments.
 
 - **Discharged by:** `b863b2e` (delete) and `abc3fdd` / `2243b54` (the suites in
-  <doc:TechDebt>'s companion test plan). Thirty-four offline tests run with no network and
+  <doc:TechDebt>'s companion test plan). Thirty-five offline tests run with no network and
   no credentials.
 
 ## TD-5 — `value1` / `value2` is public API — **open**
@@ -229,41 +229,43 @@ value of asking: the source read was right about headers, privacy levels and `.n
 wrong that every path goes through `logger.debug`. Index pinned at `52150c4b`, 0 commits
 behind that repository's HEAD.
 
-## TD-15 — Two request-shape changes are unverified against the real API — **open**
+## TD-15 — Two request-shape changes were unverified against the real API — **discharged**
 
-Both are believed correct, both are offline-pinned, and neither can be confirmed without a
-live call. Grouped because they have one discharge: run the live suite before tagging.
+Both settled by a live run on 2026-08-12, which is the only thing that could have settled
+them.
 
-1. **The two body-less POSTs now send no `Content-Type`.** `getClaimInfo` and
-   `getClaimCancelInfo` have no request body, so the generator sets no content type for
-   them; deleting the middleware's global `application/json` therefore changed exactly these
-   two operations, which previously carried a header describing a body they do not have.
-   That is the correct HTTP shape, and Yandex may still want the header.
-   `RoutePointEncodingTests.bodylessOperationsSendNoContentType` pins what we now send.
-2. **Request timestamps now carry fractional seconds.** Fixing the truncating `encode` changed
-   `OfferRequirements.due` from `2026-08-07T10:32:14Z` to `2026-08-07T10:32:14.822Z`. Valid
-   ISO-8601 and within the document, but it is the request side, where a strict server is
-   the only thing that can tell us we are wrong.
-   `RoutePointEncodingTests.encodesRequestTimestamp` pins the exact string.
+1. **The two body-less POSTs send no `Content-Type`.** `getClaimInfo` with a well-formed but
+   non-existent claim id returned **404 `not_found`** — a documented case, decoded normally.
+   Not 415, not a gateway refusal: the request shape is accepted. Removing the middleware's
+   global `application/json` was correct.
+2. **Request timestamps now carry fractional seconds.** `calculateOffers` was sent
+   `due = 2026-08-12T19:11:15.790Z` and returned **200** with an offer whose
+   `delivery_interval.from` was `19:11:15` — the server both accepted the fractional stamp
+   and honoured it.
 
-- **Cost:** two ways an otherwise-correct change could break live calls, invisible to every
-  offline test by construction — the offline suite can only assert what we decided to send.
-- **Discharge:** one run of `LiveClientTests` plus one of `LiveMutatingTests` against a real
-  account, before tagging `0.1.0`. Both were found by review rather than by testing, which
-  is the point of the review step.
-- **Scope, per TD-16:** this cannot be discharged once and applied everywhere. Timestamp
-  formats differ per operation, so item 2 needs evidence from *each* operation that sends a
-  `date-time` — `calculateOffers` (`due`) and `createClaim` (`due`, and `due` inside
-  `ClientRequirements`) at minimum. `LiveClientTests.acceptsAFractionalSecondTimestamp`
-  covers the first and says so in as many words. Item 1 is narrower: only two operations
-  send no body at all, so confirming those two settles it.
+- **Scope, and it is not a formality:** item 2 is discharged *for `calculateOffers`*. Per
+  TD-16 this API does not use one timestamp format, so `createClaim` still needs its own
+  evidence before anything is claimed about it. Item 1 is complete, because only two
+  operations send no body and both share the shape.
 
-## TD-16 — Timestamp formats differ *per operation*, in both directions — **obligation**
+## TD-16 — Timestamp formats vary *within a single response* — **obligation**
 
-Reported by the author from live debugging, and it is the most important thing in this file
-that no test can currently show: **this API does not use one timestamp format.** Different
-operations send and return different shapes, in requests and in responses, despite all of
-them being described as ISO-8601.
+Reported by the author from live debugging, then confirmed on the wire on 2026-08-12 — and
+the capture is worse than the report. **This API does not use one timestamp format**, and the
+variance is not merely per-operation: one `offers/calculate` response carried **21 timestamps
+with six-digit fractional seconds and 4 with none**, including a single `TimeInterval` object
+whose `from` had a fraction and whose `to` did not:
+
+```json
+"pickup_interval": {
+  "from": "2026-08-12T17:12:40.051944+00:00",
+  "to":   "2026-08-12T18:15:00+00:00"
+}
+```
+
+Same object, same field type, same response. `Fixtures.offersCalculateResponseJSON` is that
+capture, kept precisely because no fixture written from the document would ever have looked
+like this.
 
 The whole client contradicts that. `FlexibleISO8601Transcoder` is installed once, on the
 `Configuration`, so swift-openapi-generator applies it to *every* `date-time` field in every
@@ -302,6 +304,45 @@ confirms more than it looks:
 
 It establishes nothing about TD-15: a 401 is decided before a body or its `Content-Type` is
 examined.
+
+## TD-17 — `/offers/calculate` returns an undocumented 409 — **discharged**
+
+The first spec defect found the way <doc:SpecOwnership> says they will be: a live call came
+back `.undocumented`, which is a bug report about our own document.
+
+```
+409  {"code":"estimating.too_many_loaders",
+      "message":"В выбранном кузове не получится заказать столько грузчиков"}
+```
+
+A domain refusal — `cargo_loaders` are not orderable on the `express` tariff — carrying the
+shared `{code, message}` body, on an operation whose document declared only 400, 401, 429 and
+500. Callers saw `.undocumented(409, _)` and had nothing to switch on.
+
+- **Discharged by:** adding `'409': $ref: '#/components/responses/Conflict'` to the operation
+  in `openapi.yaml`, with the observed body quoted at the edit. The fix is in the document,
+  not in Swift, which is the whole point of owning it. The generator then made the change
+  impossible to ignore: `CalculateOffers.Output` gained a `.conflict` case and every
+  exhaustive `switch` over it stopped compiling until it was handled.
+- **Left open deliberately:** the other five operations have not been probed for undocumented
+  statuses. This one was found by accident, which is not a strategy —
+  `LiveClientTests.decodeReviewSweep` exists to find the rest, and the provenance-comment
+  item in <doc:Roadmap> is what would make each one answerable.
+
+## TD-18 — Sample requests were never validated by the API — **discharged**
+
+`OfferRequirements.exampleExpressDelivery` set `cargoLoaders: 1` alongside
+`taxiClasses: [.express]`. Every live call built from it — which is every live call, since it
+backs `Operations.CalculateOffers.Input.sample` — was refused with the 409 above before
+reaching anything the test meant to check. The fixture had been wrong since it was written
+and no offline test could tell, because a stub transport accepts whatever you send it.
+
+- **Discharged by:** dropping `cargoLoaders` from the express sample, with the reason and the
+  API's own error message recorded on the declaration.
+- **The general lesson, which is TD-6 from the other side:** offline fixtures prove the
+  client can *encode* a request, never that the request is one the API will accept. Sample
+  data used by live tests wants the same provenance discipline as sample data used for
+  decoding.
 
 ## See Also
 

@@ -84,6 +84,16 @@ paths:
           $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '409':
+          # Observed on the wire 2026-08-12, undocumented by Yandex and missing here until a
+          # live call returned it as `.undocumented`. The request was valid JSON that the
+          # *domain* rejects — `cargo_loaders` on the `express` tariff — and the body is the
+          # shared `{code, message}` shape:
+          #   {"code":"estimating.too_many_loaders",
+          #    "message":"В выбранном кузове не получится заказать столько грузчиков"}
+          # Adding it here is what turns a caller's `.undocumented` into a `.conflict` case
+          # they can handle. See TechDebt TD-17.
+          $ref: '#/components/responses/Conflict'
         '429':
           $ref: '#/components/responses/TooManyRequests'
         '500':

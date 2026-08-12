@@ -17,15 +17,28 @@ struct ClaimDecodingTests {
         let response = try await client.calculateOffers(.sample)
 
         let offers = try #require(try? response.ok.body.json.offers)
-        #expect(!offers.isEmpty)
+        #expect(offers.count == 2)
         let offer = try #require(offers.first)
-        #expect(offer.price.totalPriceWithVat == "807.6")
+        #expect(offer.price.totalPriceWithVat == "1767.78")
         #expect(offer.taxiClass == .express)
         #expect(offer.price.currency == .rub)
-        // 2020-01-01T07:00:00+00:00. Epoch zero here would mean the transcoder swallowed a
-        // parse failure rather than the date decoding.
-        #expect(offer.deliveryInterval.from == Date(timeIntervalSince1970: 1_577_862_000))
-        #expect(offer.pickupInterval.to == Date(timeIntervalSince1970: 1_577_905_200))
+        // Six-digit fractional seconds, which is the common shape in this response.
+        #expect(offer.deliveryInterval.from == Date(timeIntervalSince1970: 1_786_554_760.051944))
+        #expect(offer.pickupInterval.to == Date(timeIntervalSince1970: 1_786_555_780.051944))
+
+        // And the reason this fixture is a *capture* rather than something written from the
+        // document: the second offer mixes shapes inside one `TimeInterval`. `from` carries
+        // six fraction digits, `to` carries none — same object, same response, same field
+        // type. The full response held 21 fractional stamps and 4 plain ones. A single
+        // permissive reader is not defensive here, it is required (TD-16).
+        let mixed = try #require(offers.last)
+        #expect(mixed.pickupInterval.from == Date(timeIntervalSince1970: 1_786_554_760.051944))
+        #expect(mixed.pickupInterval.to == Date(timeIntervalSince1970: 1_786_558_500))
+        #expect(mixed.deliveryInterval.to == Date(timeIntervalSince1970: 1_786_562_100))
+
+        // A price with no decimal point at all — permitted by the document's pattern, and
+        // observed on the wire. `"1449"`, not `"1449.00"`.
+        #expect(Double(wireDecimalString: offer.price.totalPrice) == 1449)
     }
 
     @Test("A claims/info 200 decodes, including timestamps of differing precision")

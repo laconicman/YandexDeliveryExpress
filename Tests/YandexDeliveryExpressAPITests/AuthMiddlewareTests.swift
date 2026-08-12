@@ -89,6 +89,6 @@ struct AuthMiddlewareTests {
         let response = try await client.calculateOffers(.sample)
 
         let offers = try #require(try? response.ok.body.json.offers)
-        #expect(offers.count == 1)
+        #expect(offers.count == 2)
     }
 }

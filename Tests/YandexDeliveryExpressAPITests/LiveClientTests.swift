@@ -57,7 +57,9 @@ struct LiveClientTests {
         let request = Components.Schemas.OffersCalculateRequest(
             routePoints: .exampleMoscowRoute,
             items: .exampleSmallOrder,
-            requirements: .init(cargoLoaders: 1, due: due, proCourier: true, taxiClasses: [.express])
+            // No `cargoLoaders` — the express tariff refuses them with a 409, which is how
+            // the sample data was found to be wrong in the first place.
+            requirements: .init(due: due, proCourier: true, taxiClasses: [.express])
         )
 
         let response = try await client.calculateOffers(
