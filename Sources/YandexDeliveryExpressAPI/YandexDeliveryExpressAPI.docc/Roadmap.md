@@ -18,7 +18,7 @@ auth middleware overriding `Content-Type`, a `bodyLoggingConfiguration` argument
 accepted and ignored, and a decimal-string reader that turned `"807,6"` into `807`.
 
 The offline suite is written: decoding, request encoding, the auth middleware, the date
-transcoder, the decimal strings, and the descriptions — thirty-five tests, no network, no
+transcoder, the decimal strings, and the descriptions — thirty-nine tests, no network, no
 credentials.
 
 ## Now

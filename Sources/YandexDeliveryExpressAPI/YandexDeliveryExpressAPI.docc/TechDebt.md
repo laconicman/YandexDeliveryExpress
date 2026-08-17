@@ -50,7 +50,7 @@ resolve against, and the `.undocumented` case wrote `Payload: payload` as litera
 `@testable import YooMoneyAPI`, payments.
 
 - **Discharged by:** `b863b2e` (delete) and `abc3fdd` / `2243b54` (the suites in
-  <doc:TechDebt>'s companion test plan). Thirty-five offline tests run with no network and
+  <doc:TechDebt>'s companion test plan). Thirty-nine offline tests run with no network and
   no credentials.
 
 ## TD-5 — `value1` / `value2` is public API — **open**
@@ -123,18 +123,31 @@ Build — Xcode, or `swift build --build-system swiftbuild` — produces the exp
   catalog — which trades one source of truth for two and is worse. Revisit when the default
   build system changes; `--build-system swiftbuild` in CI is the cheap workaround today.
 
-## TD-11 — `acceptClaim` has no live test — **open**
+## TD-11 — `acceptClaim` has no live test — **open**, but the blocker moved
 
-Five of six operations are exercised by `LiveClientTests` or `LiveMutatingTests`.
-`acceptClaim` is not, because accepting starts the real courier search and is precisely what
-turns a later cancellation from free into billable — a suite that accepts cannot also
-promise to clean up after itself.
+Five of six operations are now exercised live. `acceptClaim` is still not, and the reason has
+changed — which is progress, because the new reason is actionable.
 
-- **Cost:** the one operation whose response shape (`ClaimAcceptResponse`) is never checked
-  against the real API. Under <doc:SpecOwnership> that means its schema is the least
-  trustworthy in the document.
-- **Discharge:** a Yandex Delivery sandbox or test account where acceptance costs nothing.
-  This is an account question, not a code one.
+**Was:** "accepting starts the real courier search and makes a later cancellation billable, so
+it needs a sandbox account." That is resolved. The credential in use *is* a test account
+(<doc:WorkingWithYandex>), and `LiveAcceptClaimTests` exists to use it, behind a third switch
+— `YDE_ACCOUNT_IS_TEST=1` on top of the mutating gate, because `AUTH_TOKEN` cannot say whose
+money is at stake.
+
+**Is:** the claim never becomes acceptable. Run 2026-08-12: `createClaim` returned `new`, and
+polling `getClaimInfo` for twenty seconds saw it go to **`estimating_failed`** rather than
+`ready_for_approval`. A claim can only be accepted from `ready_for_approval`, so the operation
+was not reached. The test recorded that as a warning, cancelled the claim, and passed — this is
+not a client defect and must not fail a run.
+
+- **Cost:** unchanged. `ClaimAcceptResponse` is the one response shape never checked against
+  the wire, which under <doc:SpecOwnership> makes it the least trustworthy schema in the
+  document.
+- **Discharge:** a request the test account can actually estimate. Candidates, cheapest first:
+  the sample route may be unserviceable at the hour it was tried; the test account may have no
+  tariff enabled for `express` on that route; or `exampleSmartphoneDelivery` may carry another
+  invalid combination of the TD-18 kind. All three are answerable by varying the request and
+  re-running the suite — which is what `LiveExplorationTests` is for.
 
 ## TD-12 — Sample data shipped inside the library target — **discharged**
 

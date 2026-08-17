@@ -130,7 +130,7 @@ struct LiveMutatingTests {
 
     // MARK: Guardrails
 
-    private struct Cancellation {
+    struct Cancellation {
         var version: Int64
         var state: Components.Schemas.CancelState
     }
@@ -201,6 +201,11 @@ struct LiveMutatingTests {
     /// fails, that is the interesting case: the first attempt's rejection was never about
     /// the version, and this helper is answering the wrong question. Asked of Devin in the
     /// PR-1 discussion; no data either way yet, because nothing has run this live.
+    /// Reuse hook for ``LiveAcceptClaimTests``, which must not re-implement the guardrail.
+    func cancelForReuse(_ id: String, _ c: Cancellation, with client: Client) async -> Bool {
+        await cancel(id, c, with: client)
+    }
+
     @discardableResult
     private func cancel(
         _ claimId: String,
@@ -236,6 +241,95 @@ struct LiveMutatingTests {
         else { return false }
 
         return body.status == .cancelled || body.status == .cancelledWithPayment
+    }
+}
+
+/// Accepting is the one operation the other suites will not touch, because on a production
+/// account it starts a real courier search and turns a later cancellation from free into
+/// billable. On a **test** account it costs nothing — so it gets a third switch of its own
+/// rather than riding on the mutating gate:
+///
+/// ```console
+/// % AUTH_TOKEN=… YDE_ALLOW_MUTATING_LIVE_TESTS=1 YDE_ACCOUNT_IS_TEST=1 \
+///     swift test --filter LiveAcceptClaimTests
+/// ```
+///
+/// Three gates is not paranoia. `AUTH_TOKEN` says a credential exists; the mutating switch
+/// says server state may change; this one says *whose* money is on the table. Nothing else in
+/// the suite can assert that, and the difference is the whole reason TD-11 stayed open.
+@Suite(
+    "Live API (mutating, accept)",
+    .tags(.live, .mutating),
+    .enabled(
+        if: mutatingLiveTestsAreEnabled && ProcessInfo.processInfo.environment["YDE_ACCOUNT_IS_TEST"] == "1",
+        "Needs AUTH_TOKEN, YDE_ALLOW_MUTATING_LIVE_TESTS=1 and YDE_ACCOUNT_IS_TEST=1"
+    ),
+    .timeLimit(.minutes(5)),
+    .serialized
+)
+struct LiveAcceptClaimTests {
+    @Test("acceptClaim, the only operation with no other live coverage (TD-11)")
+    func acceptsAClaim() async throws {
+        let log = WireLog()
+        let client = try Client.capturing(log, credentials: #require(Credentials.environment))
+
+        let created = try await client.createClaim(
+            query: .init(requestId: UUID().uuidString),
+            headers: .init(acceptLanguage: .ru),
+            body: .json(.exampleSmartphoneDelivery)
+        )
+        guard let claim = try? created.ok.body.json else {
+            Issue.record("createClaim did not return a decodable 200: \(created)")
+            return
+        }
+
+        // A claim is only acceptable once estimation has produced an offer. Poll rather than
+        // assume: the observed progression is `new` -> `estimating` -> `ready_for_approval`,
+        // and it can also land in `estimating_failed`, which is a legitimate outcome for a
+        // route the account cannot service right now.
+        var status = claim.status
+        var version = claim.version
+        for _ in 0..<10 where status == .new || status == .estimating {
+            try await Task.sleep(for: .seconds(2))
+            guard let info = try? await client.getClaimInfo(query: .init(claimId: claim.id), headers: .init(acceptLanguage: .ru)),
+                  let fetched = try? info.ok.body.json else { break }
+            status = fetched.status
+            version = fetched.version
+        }
+        Attachment.record(await log.transcript(), named: "accept-claim.txt")
+
+        guard status == .readyForApproval else {
+            Issue.record("Claim reached \(status.rawValue) rather than ready_for_approval, so acceptClaim was not exercised. Not a client defect.", severity: .warning)
+            _ = await cancelOnce(claim.id, .init(version: version, state: .free), with: client)
+            return
+        }
+
+        let accepted = try await client.acceptClaim(
+            query: .init(claimId: claim.id),
+            headers: .init(acceptLanguage: .ru),
+            body: .json(.init(version: version))
+        )
+        Attachment.record(await log.transcript(), named: "accept-claim-full.txt")
+
+        // The point of TD-11: `ClaimAcceptResponse` has never been checked against the wire.
+        if let body = try? accepted.ok.body.json {
+            #expect(body.id == claim.id)
+            #expect(body.status == .accepted || body.status == .performerLookup)
+        } else {
+            Issue.record("acceptClaim did not return a decodable 200: \(accepted)", severity: .warning)
+        }
+
+        // Accepted or not, do not leave it running.
+        let cancelled = await cancel(claim.id, .init(version: version, state: .free), with: client)
+        #expect(cancelled, "Could not cancel \(claim.id) after accepting — CANCEL IT BY HAND")
+    }
+
+    // Reuse the guardrails rather than re-implementing them.
+    private func cancel(_ id: String, _ c: LiveMutatingTests.Cancellation, with client: Client) async -> Bool {
+        await LiveMutatingTests().cancelForReuse(id, c, with: client)
+    }
+    private func cancelOnce(_ id: String, _ c: LiveMutatingTests.Cancellation, with client: Client) async -> Bool {
+        await LiveMutatingTests().cancelForReuse(id, c, with: client)
     }
 }
 

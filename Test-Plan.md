@@ -33,7 +33,7 @@ middleware chain modified — an implementation detail, not a promise. If that t
 red, stop running the live suites until it passes again.
 
 ```console
-% swift test --skip "Live API"                       # CI default — 35 tests, no network
+% swift test --skip "Live API"                       # CI default — 39 tests, no network
 % AUTH_TOKEN=… swift test                            # adds the read-only and unauthenticated live suites
 % AUTH_TOKEN=… YDE_ALLOW_MUTATING_LIVE_TESTS=1 \
     swift test --filter "Live API (mutating)"        # creates and cancels a real claim
