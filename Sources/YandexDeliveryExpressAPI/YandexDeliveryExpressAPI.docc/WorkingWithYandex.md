@@ -160,6 +160,27 @@ accepted. Nothing in the document expresses that constraint, and nothing offline
 transport accepts whatever you send it. Sample requests used by live tests therefore need
 their own validation, which is TD-18.
 
+### A closed enum on a warning cost us the whole response
+
+`warnings[].source` came back as `taxi_requirements`, which our document did not list, and the
+entire `claims/info` response failed to decode. Advisory metadata, modelled as a closed
+vocabulary, made a claim unreadable — and because a polling loop read `status` through that same
+call, claims that *had* reached `ready_for_approval` appeared frozen at `new`.
+
+Two lessons, and the second is the one that generalises: model closed enums only where a caller
+must branch exhaustively, and **never let a decode failure in one field decide what you believe
+about the rest of the API**. Details in <doc:TechDebt> TD-19.
+
+### The lifecycle does work, on a route the account can service
+
+`exampleSmartphoneDelivery` lands in `estimating_failed` and never becomes acceptable. Two
+central-Moscow addresses a few hundred metres apart on the `courier` tariff reach
+`ready_for_approval` in about six seconds, and `acceptClaim` then returns 200 `accepted`. So
+"the API will not estimate" was really "this request, on this account, will not estimate" —
+worth remembering before concluding anything about the API from one failing sample.
+
+`auto_accept: true` skips approval entirely and goes straight to `performer_lookup`.
+
 ## How to add to this article
 
 One live call is worth more than an afternoon of reading the reference, and cheaper than a

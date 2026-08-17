@@ -123,31 +123,56 @@ Build — Xcode, or `swift build --build-system swiftbuild` — produces the exp
   catalog — which trades one source of truth for two and is worse. Revisit when the default
   build system changes; `--build-system swiftbuild` in CI is the cheap workaround today.
 
-## TD-11 — `acceptClaim` has no live test — **open**, but the blocker moved
+## TD-11 — `acceptClaim` had no live test — **discharged**
 
-Five of six operations are now exercised live. `acceptClaim` is still not, and the reason has
-changed — which is progress, because the new reason is actionable.
+Exercised live on 2026-08-17. `acceptClaim` returned **200** with
+`{"id":…,"status":"accepted","version":1,"user_request_revision":"1","skip_client_notify":false}`
+— so `ClaimAcceptResponse` is now the second evidence-backed schema in this document, and all
+six operations have been called against the real API.
 
-**Was:** "accepting starts the real courier search and makes a later cancellation billable, so
-it needs a sandbox account." That is resolved. The credential in use *is* a test account
-(<doc:WorkingWithYandex>), and `LiveAcceptClaimTests` exists to use it, behind a third switch
-— `YDE_ACCOUNT_IS_TEST=1` on top of the mutating gate, because `AUTH_TOKEN` cannot say whose
-money is at stake.
+Getting there took two corrections, both worth keeping:
 
-**Is:** the claim never becomes acceptable. Run 2026-08-12: `createClaim` returned `new`, and
-polling `getClaimInfo` for twenty seconds saw it go to **`estimating_failed`** rather than
-`ready_for_approval`. A claim can only be accepted from `ready_for_approval`, so the operation
-was not reached. The test recorded that as a warning, cancelled the claim, and passed — this is
-not a client defect and must not fail a run.
+1. **The account was never the blocker.** The credential is a test account, so
+   `LiveAcceptClaimTests` gates on `YDE_ACCOUNT_IS_TEST=1` in addition to the mutating switch —
+   `AUTH_TOKEN` cannot say whose money is at stake.
+2. **The request was the blocker.** `exampleSmartphoneDelivery` lands in `estimating_failed` on
+   this account, and a claim can only be accepted from `ready_for_approval`.
+   `exampleAcceptableCourierRun` — two central-Moscow addresses a few hundred metres apart, the
+   `courier` tariff, a light parcel — reaches `ready_for_approval` in about six seconds.
 
-- **Cost:** unchanged. `ClaimAcceptResponse` is the one response shape never checked against
-  the wire, which under <doc:SpecOwnership> makes it the least trustworthy schema in the
-  document.
-- **Discharge:** a request the test account can actually estimate. Candidates, cheapest first:
-  the sample route may be unserviceable at the hour it was tried; the test account may have no
-  tariff enabled for `express` on that route; or `exampleSmartphoneDelivery` may carry another
-  invalid combination of the TD-18 kind. All three are answerable by varying the request and
-  re-running the suite — which is what `LiveExplorationTests` is for.
+- **Residual cost:** verified on a **test** account only. Per <doc:WorkingWithYandex>, this API's
+  environments cannot be assumed identical, and accepting is the one operation where being wrong
+  costs a real delivery.
+
+## TD-19 — A closed enum on advisory metadata broke whole responses — **discharged**
+
+The most consequential defect found this session, and it was ours.
+
+`ClaimWarning.code` and `.source` were modelled as **closed enums**. On 2026-08-17 a live
+`claims/info` for a claim in `ready_for_approval` returned:
+
+```json
+"warnings": [{"source": "taxi_requirements", ...}]
+```
+
+`taxi_requirements` was not in the enum, so decoding threw and the **entire `ClaimResponse`**
+was lost. `getClaimInfo` raised a `ClientError` and the claim was simply unreadable — a piece
+of advisory text took the whole response down with it.
+
+It also hid the finding above for an hour: a polling loop that read `status` through
+`getClaimInfo` saw nothing change, so claims that had in fact reached `ready_for_approval`
+looked stuck at `new`. A decode failure in one field presented as an API that does not progress.
+
+- **Discharged by:** making both fields plain `string`, with the observed values listed in the
+  description as non-exhaustive. The document is where the fix belongs (<doc:SpecOwnership>).
+- **The judgement, since it cuts against `rejectsUnknownEnumValue`:** a closed enum is right
+  where a caller must branch exhaustively and a new value is a real decision — `taxi_class`,
+  `cancel_state`, and the test that pins them stays. A *warning* is neither. It is advisory,
+  Yandex adds sources without announcement, and no caller switches over all of them. Modelling
+  a vocabulary you do not control, in a field nobody branches on, buys nothing and risks
+  everything downstream of it. Be liberal in what you accept — <doc:Design>.
+- **Left open:** every other enum in the document is now suspect for the same reason. The ones
+  worth auditing are those on advisory or descriptive fields rather than on control flow.
 
 ## TD-12 — Sample data shipped inside the library target — **discharged**
 

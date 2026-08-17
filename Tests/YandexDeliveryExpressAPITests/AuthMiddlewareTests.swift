@@ -61,7 +61,7 @@ struct AuthMiddlewareTests {
         // could reasonably change while "improving" error diagnostics. Pin it: if this test
         // ever fails, stop running the live suites until it passes again.
         let token = "s3cret-token-that-must-not-appear-anywhere"
-        let client = try Client(
+        let client = Client(
             serverURL: try Servers.Server1.url(),
             configuration: Configuration(dateTranscoder: FlexibleISO8601Transcoder()),
             transport: FailingTransport(),

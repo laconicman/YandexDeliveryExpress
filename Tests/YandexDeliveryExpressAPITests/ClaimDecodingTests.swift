@@ -22,9 +22,14 @@ struct ClaimDecodingTests {
         #expect(offer.price.totalPriceWithVat == "1767.78")
         #expect(offer.taxiClass == .express)
         #expect(offer.price.currency == .rub)
-        // Six-digit fractional seconds, which is the common shape in this response.
-        #expect(offer.deliveryInterval.from == Date(timeIntervalSince1970: 1_786_554_760.051944))
-        #expect(offer.pickupInterval.to == Date(timeIntervalSince1970: 1_786_555_780.051944))
+        // Six-digit fractional seconds, which is the common shape in this response. Compared
+        // within a millisecond rather than exactly: `…760.051944` is not representable as a
+        // `Double`, so `==` would bet on how Foundation rounds the digits it keeps — the same
+        // bet `DateTranscoderTests` deliberately avoids. The claim under test is "six-digit
+        // fractions are read, not dropped", and a millisecond tolerance says exactly that
+        // while a dropped fraction (0.05 s out) still fails.
+        #expect(abs(offer.deliveryInterval.from.timeIntervalSince1970 - 1_786_554_760.051944) < 0.001)
+        #expect(abs(offer.pickupInterval.to.timeIntervalSince1970 - 1_786_555_780.051944) < 0.001)
 
         // And the reason this fixture is a *capture* rather than something written from the
         // document: the second offer mixes shapes inside one `TimeInterval`. `from` carries
@@ -32,7 +37,7 @@ struct ClaimDecodingTests {
         // type. The full response held 21 fractional stamps and 4 plain ones. A single
         // permissive reader is not defensive here, it is required (TD-16).
         let mixed = try #require(offers.last)
-        #expect(mixed.pickupInterval.from == Date(timeIntervalSince1970: 1_786_554_760.051944))
+        #expect(abs(mixed.pickupInterval.from.timeIntervalSince1970 - 1_786_554_760.051944) < 0.001)
         #expect(mixed.pickupInterval.to == Date(timeIntervalSince1970: 1_786_558_500))
         #expect(mixed.deliveryInterval.to == Date(timeIntervalSince1970: 1_786_562_100))
 

@@ -14,7 +14,10 @@ let package = Package(
         .package(url: "https://github.com/apple/swift-openapi-runtime", from: "1.12.0"),
         .package(url: "https://github.com/apple/swift-openapi-urlsession", from: "1.3.1"),
         .package(url: "https://github.com/laconicman/OSLogLoggingMiddleware", from: "1.0.0"),
-        // Renders the DocC catalog, including the direction articles.
+        // Renders the DocC catalog, including the direction articles. Deliberately **not**
+        // listed in any target's `plugins:` — it is a *command* plugin, invoked as
+        // `swift package generate-documentation`. Attaching it to the library target would be
+        // wrong, so do not "fix" the unused-dependency warning that way.
         .package(url: "https://github.com/apple/swift-docc-plugin", from: "1.4.3")
     ],
     targets: [

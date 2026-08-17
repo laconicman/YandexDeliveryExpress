@@ -161,7 +161,17 @@ enum WireDrift {
             let fraction = stamp.contains(".")
                 ? "fraction(\(stamp.split(separator: ".").last?.prefix(while: \.isNumber).count ?? 0) digits)"
                 : "no fraction"
-            let zone = stamp.hasSuffix("Z") ? "Z" : (stamp.contains("+") || stamp.dropFirst(19).contains("-") ? "offset" : "none")
+            // Classify from the *end* of the stamp rather than by slicing at a fixed index:
+            // the date part contains `-` too, and a fraction shifts every offset's position.
+            let zone: String
+            if stamp.hasSuffix("Z") {
+                zone = "Z"
+            } else if let last = stamp.lastIndex(where: { $0 == "+" || $0 == "-" }),
+                      stamp.distance(from: stamp.startIndex, to: last) > 10 {
+                zone = "offset"
+            } else {
+                zone = "none"
+            }
             counts["\(fraction), \(zone)", default: 0] += 1
         }
         return counts

@@ -62,11 +62,19 @@ struct LiveMutatingTests {
         }
 
         guard case .ok(let ok) = created else {
-            // *Not* ambiguous. Yandex answered with a documented refusal — a 400 or a 401 —
-            // so no claim was created and there is nothing to clean up. Recovering here
-            // would post `createClaim` again and bring into existence the very claim we
-            // were trying not to leave behind.
-            Issue.record("createClaim was refused, so nothing was created: \(created)")
+            // Not every non-2xx means the same thing, and `openapi.yaml`'s own `request_id`
+            // documentation says which: on a 5xx **or a timeout**, reuse the token, because
+            // the claim may already exist. So a server error is as ambiguous as a dropped
+            // connection, and lumping it in with a 400 skips the cleanup entirely.
+            if createOutcomeIsAmbiguous(created) {
+                await recoverAndCancel(requestId: requestId, with: client)
+                Issue.record("createClaim returned a 5xx, which is ambiguous: \(created)")
+            } else {
+                // A 400 or a 401 *is* definite — nothing was created, and recovering here
+                // would post `createClaim` again and bring into existence the very claim we
+                // were trying not to leave behind.
+                Issue.record("createClaim was refused, so nothing was created: \(created)")
+            }
             return
         }
         guard let claim = try? ok.body.json else {
@@ -173,8 +181,9 @@ struct LiveMutatingTests {
         #expect(outcome, "Could not cancel \(claimId) — CANCEL IT BY HAND, the account is being billed for it")
     }
 
-    /// One cancellation attempt, then — if the version was the problem — one retry with the
-    /// version re-read from the API. Returns whether the claim ended up cancelled.
+    /// Cancels, re-reading the claim between attempts, up to three times.
+    ///
+    /// Returns whether the claim ended up cancelled.
     ///
     /// ## Why one retry, and the open question
     ///
@@ -212,19 +221,44 @@ struct LiveMutatingTests {
         _ cancellation: Cancellation,
         with client: Client
     ) async -> Bool {
-        if await cancelOnce(claimId, cancellation, with: client) { return true }
+        var attempt = cancellation
 
-        // A rejected cancellation is most often a stale `version`: the claim moved on
-        // between the read and the write. Re-read it and try once more, rather than
-        // abandoning a live claim.
-        guard let fresh = try? await client.getClaimInfo(
-            query: .init(claimId: claimId),
-            headers: .init(acceptLanguage: .ru)
-        ),
-        let reread = try? fresh.ok.body.json
-        else { return false }
+        for round in 0..<3 {
+            if await cancelOnce(claimId, attempt, with: client) { return true }
 
-        return await cancelOnce(claimId, .init(version: reread.version, state: cancellation.state), with: client)
+            // Re-read *status*, not only `version`. The one failure observed live was
+            // `409 state_mismatch` while the claim was mid-estimation — a transient state, not
+            // a stale version — and the same claim cancelled cleanly minutes later. Retrying
+            // immediately with a refreshed version would have failed for the same reason, which
+            // is what the first version of this helper did.
+            guard let fresh = try? await client.getClaimInfo(
+                query: .init(claimId: claimId),
+                headers: .init(acceptLanguage: .ru)
+            ),
+            let reread = try? fresh.ok.body.json
+            else { return false }
+
+            if reread.status == .cancelled || reread.status == .cancelledWithPayment { return true }
+            attempt.version = reread.version
+
+            // Only a claim still moving is worth waiting for. A terminal status will not
+            // become cancellable by waiting, so stop rather than burn the budget.
+            let isSettling = reread.status == .new || reread.status == .estimating
+            guard isSettling, round < 2 else { break }
+            try? await Task.sleep(for: .seconds(3))
+        }
+
+        return false
+    }
+
+    /// `.internalServerError`, or any undocumented 5xx: the request may or may not have
+    /// created a claim, so the idempotency token is the only way to find out.
+    private func createOutcomeIsAmbiguous(_ output: Operations.CreateClaim.Output) -> Bool {
+        switch output {
+        case .internalServerError: true
+        case .undocumented(let statusCode, _): (500..<600).contains(statusCode)
+        default: false
+        }
     }
 
     private func cancelOnce(
@@ -273,10 +307,13 @@ struct LiveAcceptClaimTests {
         let log = WireLog()
         let client = try Client.capturing(log, credentials: #require(Credentials.environment))
 
+        // A short central-Moscow courier run, because the express sample never estimates on
+        // this account — it lands in `estimating_failed`, and a claim can only be accepted
+        // from `ready_for_approval`. See TD-11.
         let created = try await client.createClaim(
             query: .init(requestId: UUID().uuidString),
             headers: .init(acceptLanguage: .ru),
-            body: .json(.exampleSmartphoneDelivery)
+            body: .json(.exampleAcceptableCourierRun)
         )
         guard let claim = try? created.ok.body.json else {
             Issue.record("createClaim did not return a decodable 200: \(created)")
@@ -289,7 +326,7 @@ struct LiveAcceptClaimTests {
         // route the account cannot service right now.
         var status = claim.status
         var version = claim.version
-        for _ in 0..<10 where status == .new || status == .estimating {
+        for _ in 0..<15 where status == .new || status == .estimating {
             try await Task.sleep(for: .seconds(2))
             guard let info = try? await client.getClaimInfo(query: .init(claimId: claim.id), headers: .init(acceptLanguage: .ru)),
                   let fetched = try? info.ok.body.json else { break }
@@ -300,7 +337,8 @@ struct LiveAcceptClaimTests {
 
         guard status == .readyForApproval else {
             Issue.record("Claim reached \(status.rawValue) rather than ready_for_approval, so acceptClaim was not exercised. Not a client defect.", severity: .warning)
-            _ = await cancelOnce(claim.id, .init(version: version, state: .free), with: client)
+            let cancelled = await cancel(claim.id, .init(version: version, state: .free), with: client)
+            #expect(cancelled, "Could not cancel \(claim.id) after \(status.rawValue) — CANCEL IT BY HAND")
             return
         }
 
@@ -324,18 +362,10 @@ struct LiveAcceptClaimTests {
         #expect(cancelled, "Could not cancel \(claim.id) after accepting — CANCEL IT BY HAND")
     }
 
-    // Reuse the guardrails rather than re-implementing them.
+    /// Reuse the guardrail rather than re-implementing it. There is deliberately no
+    /// single-attempt variant here: after four rounds of holes in this cleanup path, a second
+    /// way to cancel is the last thing this file needs.
     private func cancel(_ id: String, _ c: LiveMutatingTests.Cancellation, with client: Client) async -> Bool {
         await LiveMutatingTests().cancelForReuse(id, c, with: client)
     }
-    private func cancelOnce(_ id: String, _ c: LiveMutatingTests.Cancellation, with client: Client) async -> Bool {
-        await LiveMutatingTests().cancelForReuse(id, c, with: client)
-    }
 }
-
-// MARK: - Not covered live, deliberately
-//
-// `acceptClaim` is the one operation with no live test. Accepting is what starts the real
-// courier search, and it is the step that makes a cancellation billable — a suite that
-// accepts cannot also promise to cancel for free. Exercising it needs a Yandex sandbox
-// account rather than a guardrail, which is recorded in the DocC `TechDebt` article (TD-11).

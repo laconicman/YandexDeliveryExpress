@@ -22,6 +22,7 @@ README disagree, believe the catalog. Build it with
 |---|---|
 | [Design](Sources/YandexDeliveryExpressAPI/YandexDeliveryExpressAPI.docc/Design.md) | Every load-bearing decision, with the alternative that was rejected |
 | [Owning the Specification](Sources/YandexDeliveryExpressAPI/YandexDeliveryExpressAPI.docc/SpecOwnership.md) | Why `openapi.yaml` is hand-written, and what that obligates in return |
+| [Working with the Yandex API](Sources/YandexDeliveryExpressAPI/YandexDeliveryExpressAPI.docc/WorkingWithYandex.md) | What the API actually does, observed on the wire and dated |
 | [Tech Debt](Sources/YandexDeliveryExpressAPI/YandexDeliveryExpressAPI.docc/TechDebt.md) | Every compromise carried, what it costs, and what would retire it |
 | [Roadmap](Sources/YandexDeliveryExpressAPI/YandexDeliveryExpressAPI.docc/Roadmap.md) | Planned work in priority order |
 
@@ -32,6 +33,12 @@ README disagree, believe the catalog. Build it with
 ```
 
 Requires Swift 6.1 or newer, and iOS 17 / macOS 14 / tvOS 17 / watchOS 10 / visionOS 1.
+
+> **If you build with SwiftPM directly, the package's user-facing strings are English only.**
+> SwiftPM's native build system copies `Localizable.xcstrings` into the resource bundle without
+> compiling it, so the `ru` translations are not in the artifact. Xcode — and
+> `swift build --build-system swiftbuild` — compile it properly. This affects shipped behaviour,
+> not just tests; it is Tech Debt TD-10.
 
 ## Coverage
 
@@ -75,7 +82,7 @@ case .ok(let ok):
     for offer in try ok.body.json.offers {
         print(offer.taxiClass, offer.price.totalPriceWithVat, offer.deliveryInterval.to)
     }
-case .badRequest, .unauthorized, .tooManyRequests, .internalServerError:
+case .badRequest, .unauthorized, .conflict, .tooManyRequests, .internalServerError:
     print(response)                             // renders the API's own `message`
 case .undocumented(let statusCode, _):
     // The document is wrong. Please open an issue — see Owning the Specification.
@@ -89,6 +96,20 @@ as `ClientError` and never collapsed into a response case.
 
 Any `Output` also has a readable `description`: pretty-printed JSON for a success, the API's
 own `message` for a documented error.
+
+### `.conflict` is a domain refusal, not a transport problem
+
+`409` means the request was well formed and the *domain* said no —
+`estimating.too_many_loaders` for cargo loaders on the `express` tariff, `state_mismatch` for a
+claim that has moved on. It reads like an error and behaves like validation, so handle it
+alongside `.badRequest` rather than as a failure. It was undocumented by Yandex until a live
+call returned it (Tech Debt TD-17).
+
+Two more things about error bodies, learned the same way. `code` carries **two vocabularies** —
+symbolic (`not_found`, `state_mismatch`) and the status as a string (`"400"`) — so do not switch
+on it as an enumeration. And the full catalogue of what this API actually does, as opposed to
+what any document says, is in
+[Working with the Yandex API](Sources/YandexDeliveryExpressAPI/YandexDeliveryExpressAPI.docc/WorkingWithYandex.md).
 
 ### Cancellation is a two-step protocol
 

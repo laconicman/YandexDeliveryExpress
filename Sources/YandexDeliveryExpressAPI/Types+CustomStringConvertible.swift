@@ -17,10 +17,20 @@ private func message(of response: Components.Schemas.ErrorResponse?) -> String {
 }
 
 /// An `.undocumented` response means `openapi.yaml` is wrong — see the `SpecOwnership`
-/// article — so show the status and the payload rather than a generic failure.
+/// article — so show what can be shown and say plainly what cannot.
+///
+/// The body is deliberately **not** promised. Reading `HTTPBody` is `async` and `description`
+/// is not, so an earlier version interpolated the whole `UndocumentedPayload` and printed its
+/// header fields followed by an opaque `HTTPBody` — advertising a payload it could never
+/// deliver. Headers and status are what is available synchronously; the caller holds the body
+/// and can read it.
 private func undocumentedDescription(statusCode: Int, payload: UndocumentedPayload) -> String {
-    String(
-        localized: "Undocumented response: status code \(statusCode).\nPayload: \(String(describing: payload))",
+    let headers = payload.headerFields
+        .map { "\($0.name.canonicalName): \($0.value)" }
+        .sorted()
+        .joined(separator: "; ")
+    return String(
+        localized: "Undocumented response: status code \(statusCode).\nHeaders: \(headers)\nBody not shown — read it from the payload.",
         bundle: #bundle,
         comment: "Error description"
     )

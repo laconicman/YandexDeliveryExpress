@@ -469,3 +469,42 @@ extension [Components.Schemas.RoutePointBase] {
 extension [Components.Schemas.TaxiClass] {
     static let exampleTaxiClasses: Self = [.cargo, .express, .sddLong]
 }
+
+// MARK: - A request the live test account can estimate
+
+extension Components.Schemas.ClaimCreateRequest {
+    /// Reaches `ready_for_approval` on the test account, which `exampleSmartphoneDelivery`
+    /// does not — that one lands in `estimating_failed`, so `acceptClaim` was unreachable
+    /// (TD-11). Two central-Moscow addresses a few hundred metres apart, the `courier` tariff,
+    /// and a light parcel. Verified live 2026-08-17.
+    static let exampleAcceptableCourierRun: Self = .init(
+        items: [
+            .init(
+                costCurrency: .rub,
+                costValue: "500",
+                pickupPoint: 1,
+                quantity: 1,
+                title: "Документы",
+                dropoffPoint: 2,
+                weight: 0.3
+            )
+        ],
+        routePoints: [
+            .init(
+                address: .init(fullname: "Москва, Красная площадь, 1", coordinates: [37.6208, 55.7539]),
+                contact: .init(name: "Иван Петров", phone: "+79123456789", email: "ivan.petrov@example.com"),
+                pointId: 1,
+                _type: .source,
+                visitOrder: 1
+            ),
+            .init(
+                address: .init(fullname: "Москва, Тверская улица, 7", coordinates: [37.6117, 55.7601]),
+                contact: .init(name: "Анна Сидорова", phone: "+79987654321"),
+                pointId: 2,
+                _type: .destination,
+                visitOrder: 2
+            )
+        ],
+        clientRequirements: .init(taxiClass: .courier)
+    )
+}
