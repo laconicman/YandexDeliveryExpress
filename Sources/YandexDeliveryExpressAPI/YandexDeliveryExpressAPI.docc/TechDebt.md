@@ -144,13 +144,24 @@ lost its `public`, so 452 lines of sample data are no longer public API compiled
 consuming app. The provenance is recorded in the file's header rather than left for the next
 reader to re-litigate — as it was here, twice, by two reviewers.
 
-**This hands work to `YandexDostavka`.** The sample app was the only consumer, in sixteen
+**Done, and the app now declares its own.** The sample app was the only consumer, in sixteen
 places: fourteen `#Preview` blocks, and — less obviously — `CalculateOffersViewModel` and
 `CreateClaimViewModel`, whose `setupDefaults()` prefills the demo's forms from
-`.exampleSimpleRoute` / `.exampleSmallOrder` at *runtime*. The app must declare its own,
-which is where they belonged anyway: prefilled form state is presentation, and this is the
-same argument as TD-13. Nothing is lost — `git show 0eb35cb:Sources/YandexDeliveryExpressAPI/Types+examples.swift`
-is the file to copy from.
+`.exampleSimpleRoute` / `.exampleSmallOrder` at *runtime*. They now live in
+`YandexDostavka/…/Models/SampleData.swift`, and that app builds again.
+
+The placement is Manferdini's, checked against the source rather than assumed. *SwiftUI
+Structural Foundations* 2.3 teaches exactly this pattern — static values in type extensions so
+`.example…` resolves by inference — and is explicit about where it goes: "a *PreviewData.swift*
+file in the *Preview Content* group of your Xcode project. That way, it will only be available
+for Xcode previews but won't be included in the final build." So the pattern was right all
+along and only the *location* was wrong — and it was wrong in the way the course warns about
+most directly, since a library ships to every consumer.
+
+The app deviates from the course on one point deliberately: its copy ships rather than sitting
+in Preview Content, because two view models read it at runtime and for a demo the prefilled
+state is the product. Data the shipping build needs cannot live in development assets. Sample
+data used *only* by a preview still belongs in Preview Content.
 
 The package is unreleased, so this breaks no published API.
 
