@@ -5,6 +5,7 @@ the change that discharges it. Reference an item from code with `// TODO(TD-n): 
 
 Status legend: **open** (accepted for now) · **blocking** (must be fixed before the package
 builds or ships) · **obligation** (permanent cost of a deliberate design choice) ·
+**decided** (a trade taken deliberately; the entry records the reasoning) ·
 **discharged** (kept for its number and its history; nothing to do).
 
 Numbers are never reused. TD-1 through TD-4, TD-7 and TD-8 were the "this repository does
@@ -292,10 +293,12 @@ them.
    `delivery_interval.from` was `19:11:15` — the server both accepted the fractional stamp
    and honoured it.
 
-- **Scope, and it is not a formality:** item 2 is discharged *for `calculateOffers`*. Per
-  TD-16 this API does not use one timestamp format, so `createClaim` still needs its own
-  evidence before anything is claimed about it. Item 1 is complete, because only two
-  operations send no body and both share the shape.
+- **Scope closed 2026-08-17.** Item 2 was discharged for `calculateOffers` first; `createClaim`
+  then got its own evidence, because per TD-16 one operation licenses nothing about another.
+  `LiveMutatingTests.createClaimAcceptsFractionalTimestamps` sends a fractional-second `due`
+  through `claims/create` and it is accepted. Both operations that send a timestamp are now
+  covered. Item 1 was already complete: only two operations send no body and both share the
+  shape.
 
 ## TD-16 — Timestamp formats vary *within a single response* — **obligation**
 
@@ -393,7 +396,7 @@ and no offline test could tell, because a stub transport accepts whatever you se
   data used by live tests wants the same provenance discipline as sample data used for
   decoding.
 
-## TD-20 — Enum audit: which closed enums can lose a response — **open**
+## TD-20 — Enum audit: which closed enums can lose a response — **decided**
 
 TD-19 fixed the enum that bit us and left "audit the rest" open. This is that audit, of all
 fourteen enums in `openapi.yaml`, against one question: **if Yandex adds a value tomorrow, what
@@ -452,12 +455,40 @@ deliberately, not everywhere.
 - **Cost of leaving it:** each response-side closed enum is a single unannounced Yandex addition
   away from making a whole class of response undecodable, exactly as TD-19 did. `ClaimStatus`
   and `Currency` are the ones that would hurt.
-- **Discharge:** open the six marked above, **batched with the TD-5 flattening** in one
-  source-breaking release with a migration note (<doc:Roadmap> → Next). Batching is the point:
-  every one of these changes a public type, and callers should recompile once. `ClaimStatus`
-  needs the author's call first — decode safety against ergonomics for the most-used enum in the
-  package — and the answer may be to open it *and* provide a computed convenience so call sites
-  keep reading well.
+### Decided 2026-08-17: the enums stay closed
+
+The author's call, and it settles the whole table above rather than only `ClaimStatus`: **keep
+the vanilla generator output**. No `anyOf` wrappers, no hand-written convenience layer — the
+package presents what swift-openapi-generator produces from a plain specification, with no
+custom flavour.
+
+The choice was really between two options, not three. "Strict enums with the `value1`/`value2`
+flattened away" is not available: the `anyOf` pattern *is* what produces that pair, and
+flattening it would mean a hand-written Swift wrapper over a generated type — which rule 1 of
+`CLAUDE.md` forbids and which <doc:SpecOwnership> exists to prevent. So it was closed enums
+versus raw strings, and closed enums keep the surface idiomatic and exhaustively switchable.
+
+**What this costs, stated plainly so nobody is surprised:** an unannounced Yandex addition to
+`Currency`, `TaxiClass` or `ClaimStatus` makes a whole class of response undecodable, exactly as
+TD-19 did. That is accepted.
+
+**What makes it survivable:**
+
+- The failure is **loud and total**, not silent — a thrown `ClientError`, never a wrong value.
+  The two-channel rule means it can never be mistaken for a documented response.
+- `LiveExplorationTests` and `LiveClientTests.decodeReviewSweep` are the detector, which is why
+  running the live suite on a schedule (<doc:Roadmap> → Next) is the mitigation this decision
+  depends on rather than a nice-to-have.
+- The fix, when it happens, is one line in `openapi.yaml` and a regenerate.
+
+**The boundary this draws, and it is the useful part:** TD-19 made `ClaimWarning.code` and
+`.source` plain strings, and that is *not* an exception to this decision. A closed enum models a
+**domain vocabulary a caller branches on**. A free-form or advisory field — a warning source, a
+diagnostic code — is not a vocabulary, and modelling it as one is what broke the response. Enum
+where callers must switch; string where the field is prose.
+
+- **Discharge:** none. This is a decision, not debt; the entry stays for the audit and for the
+  reasoning.
 - **Not discharged by testing.** `rejectsUnknownEnumValue` pins that unknown values throw; it is
   the specification of the current behaviour, not a defence of it. If these open, that test
   changes with them.

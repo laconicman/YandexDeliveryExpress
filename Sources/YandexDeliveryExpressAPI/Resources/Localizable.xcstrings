@@ -151,6 +151,23 @@
         }
       }
     },
+    "undocumented.response" : {
+      "comment" : "Error description",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Undocumented response: status code %lld.\nHeaders: %@\nBody not shown — read it from the payload."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Недокументированный ответ: код состояния %lld.\nЗаголовки: %@\nТело не показано — прочитайте его из payload."
+          }
+        }
+      }
+    },
     "Undecoded JSON" : {
       "comment" : "Error description",
       "localizations" : {
@@ -158,17 +175,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Не удалось декодировать JSON"
-          }
-        }
-      }
-    },
-    "Undocumented response: status code %lld.\nPayload: %@" : {
-      "comment" : "Error description",
-      "localizations" : {
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Недокументированный ответ: код состояния %lld.\nТело: %@"
           }
         }
       }

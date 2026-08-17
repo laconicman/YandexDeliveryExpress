@@ -29,8 +29,12 @@ private func undocumentedDescription(statusCode: Int, payload: UndocumentedPaylo
         .map { "\($0.name.canonicalName): \($0.value)" }
         .sorted()
         .joined(separator: "; ")
+    // An explicit key with `defaultValue`, like the `cancelInfo.*` strings. Deriving the key
+    // from the literal means every wording change silently orphans the translation — which is
+    // exactly what happened when this message changed from "Payload" to "Headers".
     return String(
-        localized: "Undocumented response: status code \(statusCode).\nHeaders: \(headers)\nBody not shown — read it from the payload.",
+        localized: "undocumented.response",
+        defaultValue: "Undocumented response: status code \(statusCode).\nHeaders: \(headers)\nBody not shown — read it from the payload.",
         bundle: #bundle,
         comment: "Error description"
     )

@@ -143,8 +143,7 @@ set it under Edit Scheme → Run → Environment. Keep it out of version control
 
 ## Generated code
 
-`Client.swift`, `Types.swift` and `Server.swift` are produced by the generator **build
-plugin** on every build and are never committed. Editing `openapi.yaml` is the whole
+`Client.swift` and `Types.swift` are produced by the generator **build plugin** on every build and are never committed. Editing `openapi.yaml` is the whole
 regeneration workflow — there is no command to run, and the reviewable diff is the diff of
 the document itself.
 
@@ -191,4 +190,4 @@ so translations only exist in artifacts built by Swift Build — Xcode, or
 
 ## License
 
-Apache 2.0. See [LICENSE](LICENSE).
+Apache 2.0 — see [LICENSE](LICENSE). Unofficial and unaffiliated with Yandex.

@@ -33,6 +33,34 @@ private var mutatingLiveTestsAreEnabled: Bool {
     .serialized
 )
 struct LiveMutatingTests {
+    @Test("createClaim accepts the fractional-second timestamps we now send")
+    func createClaimAcceptsFractionalTimestamps() async throws {
+        // The other half of TD-15. `encode` writes millisecond fractions for *every*
+        // `date-time` in every operation, because the transcoder is installed once on the
+        // `Configuration` — but the only live evidence was `calculateOffers`'s `due`, and
+        // TD-16 says this API's formats vary per operation. So `createClaim` was sending a
+        // shape nothing had validated.
+        let client = try Client(credentials: #require(Credentials.environment))
+        var request = Components.Schemas.ClaimCreateRequest.exampleAcceptableCourierRun
+        request.due = Calendar.current.date(byAdding: .hour, value: 2, to: Date())
+
+        let created = try await client.createClaim(
+            query: .init(requestId: UUID().uuidString),
+            headers: .init(acceptLanguage: .ru),
+            body: .json(request)
+        )
+
+        if case .badRequest(let error) = created {
+            Issue.record("createClaim rejected a fractional-second `due`: \((try? error.body.json.message) ?? "?")")
+        }
+        guard let claim = try? created.ok.body.json else {
+            Issue.record("createClaim did not return a decodable 200: \(created)")
+            return
+        }
+        let cancelled = await cancel(claim.id, .init(version: claim.version, state: .free), with: client)
+        #expect(cancelled, "Could not cancel \(claim.id) — CANCEL IT BY HAND")
+    }
+
     @Test("create -> info -> cancel-info -> cancel, on one claim")
     func claimLifecycle() async throws {
         // One test, not four: split across tests these would be order-dependent, which no
@@ -239,13 +267,17 @@ struct LiveMutatingTests {
             else { return false }
 
             if reread.status == .cancelled || reread.status == .cancelledWithPayment { return true }
+
+            // The refreshed version is the whole point of re-reading, so the next iteration
+            // always uses it. An earlier version of this loop broke out here for any status
+            // that was not still settling — which skipped the retry in precisely the case the
+            // retry exists for, a rejection caused by a stale version.
             attempt.version = reread.version
 
-            // Only a claim still moving is worth waiting for. A terminal status will not
-            // become cancellable by waiting, so stop rather than burn the budget.
+            // The status decides whether to *wait*, not whether to retry. A claim still being
+            // priced may need a moment; a terminal one will not become cancellable by waiting.
             let isSettling = reread.status == .new || reread.status == .estimating
-            guard isSettling, round < 2 else { break }
-            try? await Task.sleep(for: .seconds(3))
+            if isSettling, round < 2 { try? await Task.sleep(for: .seconds(3)) }
         }
 
         return false

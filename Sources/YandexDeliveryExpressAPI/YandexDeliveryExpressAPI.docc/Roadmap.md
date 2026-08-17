@@ -54,8 +54,8 @@ are accepted without `Content-Type`, and `calculateOffers` accepts and honours a
 fractional-second `due`. It also found an undocumented 409 (TD-17) and an invalid sample
 request (TD-18), both fixed. All six operations have since been exercised live, including
 `acceptClaim` (TD-11), and a decode-breaking closed enum was found and fixed on the way
-(TD-19). What remains before tagging is a decision on the TD-20 enum audit, since opening those
-enums is source-breaking and better done before a first tag than after.
+(TD-19). The TD-20 enum audit is decided — they stay closed — so nothing
+source-breaking remains outstanding before a first tag.
 
 ## Next
 
@@ -64,10 +64,9 @@ enums is source-breaking and better done before a first tag than after.
 Remove `value1`/`value2` from the public API by editing the document (TD-5,
 <doc:SpecOwnership>). Source-breaking, so it lands as one release with a migration note,
 together with any other schema shapes worth correcting while callers are already
-recompiling — including moving `newRoutePoint` out of the library (TD-13) and opening the six
-response-side enums identified by the TD-20 audit. Batching matters here: each of those changes
-a public type, and the open-enum pattern reintroduces `value1`/`value2` in the same release that
-removes it elsewhere, so the two decisions want to be taken together rather than in sequence.
+recompiling — including moving `newRoutePoint` out of the library (TD-13). The enums are
+**not** part of this: TD-20 is decided, they stay closed, and the vanilla generator output is
+the surface.
 
 ### Give every schema a provenance comment
 
