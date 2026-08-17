@@ -57,6 +57,8 @@ red, stop running the live suites until it passes again.
 | `DecimalStringTests.swift` | Decimal strings | `.specContract` | Amounts in both directions, and what is *not* an amount |
 | `AuthMiddlewareTests.swift` | Auth middleware | `.regression` | One thing it does, three it must not, and the credential it must never leak |
 | `DescriptionTests.swift` | Descriptions | `.regression` | TD-2, under a time limit |
+| `WireCapture.swift` | — | — | `CapturingTransport`, `WireLog`, `WireDrift` — records the wire and diffs it against our types |
+| `LiveExplorationTests.swift` | Live API (exploration) | `.live`, `.exploration` | Asks the API what it does; reports, never asserts |
 | `LiveUnauthenticatedTests.swift` | Live API (unauthenticated) | `.live` | The auth path, no account needed |
 | `LiveClientTests.swift` | Live API | `.live` | Read-only, credential-gated |
 | `LiveMutatingTests.swift` | Live API (mutating) | `.live`, `.mutating` | The lifecycle, double-gated |
@@ -107,6 +109,41 @@ replace the fixture and say where it came from.
   `Bundle.module.localizations.contains("ru")`: under SwiftPM's native build system the
   String Catalog is copied uncompiled and the translations do not exist to assert (TD-10).
 
+## The exploration harness — how `WorkingWithYandex` gets written
+
+`LiveExplorationTests` is the instrument, not a test in the usual sense. Yandex publishes no
+OpenAPI document and its HTML reference is incomplete, so `openapi.yaml` is a hypothesis and
+this suite is the experiment. It produced every observation in the `WorkingWithYandex` article.
+
+```console
+% AUTH_TOKEN="$(cat ~/.yandex-auth-token)" \
+    swift test --filter LiveExplorationTests --attachments-path .build/attachments
+```
+
+**`--attachments-path` is required and the directory must exist** — SwiftPM discards
+attachments without it, and the evidence is the entire point. Under `xcodebuild`, pass
+`-resultBundlePath` and export with `xcrun xcresulttool export attachments`.
+
+It **reports rather than asserts**: raw exchanges become attachments and findings become
+`.warning` issues, so a Yandex-side change shows up as a report instead of a red build. The
+only failures are client defects. Both mechanisms need Swift 6.2+/6.3+ respectively; this
+package's floor is well above that.
+
+Three things it gives a maintainer that reading the reference cannot:
+
+- **`WireDrift.undocumented(in:understoodAs:)`** — decodes a response into the generated type,
+  re-encodes it, and diffs the key paths. Keys in the raw payload but not the round trip are
+  fields Yandex sends and `openapi.yaml` does not model. No hand-maintained list of "documented
+  fields" to drift; the generated types *are* the list.
+- **`WireDrift.timestampShapes(in:)`** — the TD-16 census. The run on 2026-08-12 reported
+  `fraction(6 digits), offset: 21` and `no fraction, offset: 4` from a single response.
+- **The undocumented-status probe** — three deliberately malformed read-only calls. It is how
+  TD-17 was found, and it now reports "no undocumented statuses on the probed paths", because
+  the document was fixed. That closed loop is the harness working.
+
+`CapturingTransport` sits **below** the middleware chain on purpose: a middleware would see the
+`Authorization` header this package is careful never to log.
+
 ## Open question: the bounded retry in the mutating cleanup
 
 `LiveMutatingTests.cancel(_:_:with:)` makes one cancellation attempt and, if it fails,
@@ -120,11 +157,16 @@ claim, a token without the scope, a changed endpoint — into something that loo
 at the price of two requests and a more confusing log.
 
 It is capped at one, and it re-reads rather than blindly repeating, so a second failure is
-evidence about something other than the version. **Resolve it with data, on the first real
-run:** if the retry never fires, delete it; if it fires and succeeds, the race is real and
-belongs in `Design.md`; if it fires and fails, the first rejection was never about the
-version and the helper is answering the wrong question. Raised with Devin in the PR-1
-discussion — no data either way yet, because nothing has run this live.
+evidence about something other than the version. **First data, 2026-08-12 — and it favours the third branch.** A cancellation was refused with
+`409 state_mismatch` while the claim was mid-estimation, and *the same claim cancelled
+successfully minutes later* from `estimating_failed`. So the rejection was about transient
+**state**, not about `version` — which is precisely Devin's "the helper is answering the wrong
+question" case.
+
+The retry earns its place, but it is re-reading the wrong field. It should re-read the
+**status** and tolerate a transition, not just refresh `version`. Left as-is for now because
+one observation is not a pattern, and because changing a cleanup path on one data point is how
+you get a cleanup path nobody trusts. Run it a few more times, then fix it deliberately.
 
 ## Gaps, deliberate and otherwise
 

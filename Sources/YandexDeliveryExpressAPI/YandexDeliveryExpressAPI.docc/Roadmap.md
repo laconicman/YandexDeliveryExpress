@@ -122,3 +122,4 @@ plus an `operationId` — add one when a caller needs it, not before.
 
 - <doc:Design>
 - <doc:TechDebt>
+- <doc:WorkingWithYandex>

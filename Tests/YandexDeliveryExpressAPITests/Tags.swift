@@ -14,6 +14,11 @@ extension Tag {
     /// token at this suite is never enough on its own.
     @Tag static var mutating: Self
 
+    /// Asks the API what it actually sends, rather than asserting what we believe. These
+    /// tests *record* — attachments and warnings — and fail only when the client breaks.
+    /// They are how `WorkingWithYandex` gets written.
+    @Tag static var exploration: Self
+
     /// Pins a bug that shipped. Deleting one of these needs a reason.
     @Tag static var regression: Self
 }

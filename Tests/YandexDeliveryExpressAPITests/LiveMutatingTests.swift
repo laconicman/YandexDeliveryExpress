@@ -91,7 +91,11 @@ struct LiveMutatingTests {
             let fetched = try #require(try? info.ok.body.json)
             cancellation.version = fetched.version
             #expect(fetched.id == claim.id)
-            #expect(fetched.routePoints.count == 2)
+            // Three, not the two we sent: Yandex appends a `return` point of its own, and
+            // renumbers every point with server-assigned int64 ids. Observed 2026-08-12 —
+            // see the `WorkingWithYandex` article.
+            #expect(fetched.routePoints.count == 3)
+            #expect(fetched.routePoints.map(\._type) == [.source, .destination, ._return])
 
             let cancelInfo = try await client.getClaimCancelInfo(
                 query: .init(claimId: claim.id),

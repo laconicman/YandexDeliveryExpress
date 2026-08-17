@@ -275,3 +275,4 @@ grows — <doc:Roadmap>.
 - <doc:SpecOwnership>
 - <doc:TechDebt>
 - <doc:Roadmap>
+- <doc:WorkingWithYandex>

@@ -348,3 +348,4 @@ and no offline test could tell, because a stub transport accepts whatever you se
 
 - <doc:SpecOwnership>
 - <doc:Roadmap>
+- <doc:WorkingWithYandex>
