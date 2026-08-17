@@ -13,3 +13,15 @@ Package.resolved
 .ci/
 .docc-build/
 .cursorignore
+
+# Credentials. The live suites read AUTH_TOKEN from the environment and the token itself
+# lives outside any repository (~/.yandex-auth-token, mode 600) — these patterns exist so
+# that a copy made "just for a minute" cannot be committed by accident.
+*.token
+*auth-token*
+*-token
+.env
+.env.*
+secrets.*
+*.pem
+*.p12

@@ -1,8 +1,23 @@
-// Sources/YandexDeliveryExpressAPIClient/Samples+YandexDelivery.swift
+//
+//  SampleData.swift
+//  YandexDeliveryExpressAPITests
+//
+//  Request-side sample data: route points, contacts, cargo items, and the requests built
+//  from them. This lived in the *shipping* target until TD-12 — public API in every app that
+//  linked the package, and in the binary — and belongs here, beside the response fixtures it
+//  pairs with.
+//
+//  The addresses, names, phone numbers and e-mail addresses are fictional, confirmed by the
+//  author. The names and one phone number are `openapi.yaml`'s own `Contact` examples, and
+//  every domain is `example.com`, reserved for documentation by RFC 2606.
+//
+
 import Foundation
+@testable import YandexDeliveryExpressAPI
+
 // MARK: - Route Point Samples
 
-public extension Components.Schemas.RoutePointWithAddress {
+extension Components.Schemas.RoutePointWithAddress {
     static let exampleMoscowOffice: Self = .init(value1: .init(id: 1), value2: .exampleMoscowOffice)
     static let exampleMoscowApartment: Self = .init(value1: .init(id: 2), value2: .exampleMoscowApartment)
     static let exampleMoscowStore: Self = .init(value1: .init(id: 3), value2: .exampleMoscowStore)
@@ -11,7 +26,7 @@ public extension Components.Schemas.RoutePointWithAddress {
 
 // MARK: - Item Samples
 
-public extension Components.Schemas.ItemBase {
+extension Components.Schemas.ItemBase {
     static let exampleSmallPackage: Self = .init(
         quantity: 1,
         pickupPoint: 1,
@@ -47,7 +62,7 @@ public extension Components.Schemas.ItemBase {
 
 // MARK: - Item Size Samples
 
-public extension Components.Schemas.ItemSize {
+extension Components.Schemas.ItemSize {
     static let exampleSmallBox: Self = .init(
         length: 0.1,
         width: 0.1,
@@ -75,7 +90,7 @@ public extension Components.Schemas.ItemSize {
 
 // MARK: - Cargo Item Samples
 
-public extension Components.Schemas.CargoItem {
+extension Components.Schemas.CargoItem {
     static let exampleSmartphone: Self = .init(
         costCurrency: .rub,
         costValue: "89990.00",
@@ -139,7 +154,7 @@ public extension Components.Schemas.CargoItem {
 
 // MARK: - Point Address Samples
 
-public extension Components.Schemas.Address {
+extension Components.Schemas.Address {
     static let exampleMoscowOffice: Self = .init(
         fullname: "Москва, ул Москворечье, 6",
         building: "1",
@@ -190,7 +205,7 @@ public extension Components.Schemas.Address {
 
 // MARK: - Contact Samples
 
-public extension Components.Schemas.Contact {
+extension Components.Schemas.Contact {
     static let exampleSender: Self = .init(
         name: "Иван Петров",
         phone: "+79123456789",
@@ -219,7 +234,7 @@ public extension Components.Schemas.Contact {
 
 // MARK: - Cargo Point Samples
 
-public extension Components.Schemas.RoutePointBase {
+extension Components.Schemas.RoutePointBase {
     static let examplePickupOffice: Self = .init(
         address: .exampleMoscowOffice,
         contact: .exampleSender,
@@ -251,9 +266,13 @@ public extension Components.Schemas.RoutePointBase {
 
 // MARK: - Requirements Samples
 
-public extension Components.Schemas.OfferRequirements {
+extension Components.Schemas.OfferRequirements {
+    /// No `cargoLoaders`. The live API rejects loaders on the `express` tariff with
+    /// `409 estimating.too_many_loaders` — «В выбранном кузове не получится заказать столько
+    /// грузчиков» — which is how this fixture was found to be invalid: it had `cargoLoaders: 1`
+    /// and every live call using it failed before reaching anything worth testing. Loaders
+    /// belong to `cargo`; see `exampleCargoDelivery`.
     static let exampleExpressDelivery: Self = .init(
-        cargoLoaders: 1,
         proCourier: true,
         skipDoorToDoor: false,
         taxiClasses: [.express]
@@ -283,7 +302,7 @@ public extension Components.Schemas.OfferRequirements {
     )
 }
 
-public extension Components.Schemas.ClientRequirements {
+extension Components.Schemas.ClientRequirements {
     static let exampleExpressClient: Self = .init(
         taxiClass: .express,
         cargoLoaders: 1,
@@ -306,7 +325,7 @@ public extension Components.Schemas.ClientRequirements {
 
 // MARK: - Request Samples
 
-public extension Components.Schemas.OffersCalculateRequest {
+extension Components.Schemas.OffersCalculateRequest {
     static let exampleBasicRequest: Self = .init(
         routePoints: [
             .exampleMoscowOffice,
@@ -343,7 +362,7 @@ public extension Components.Schemas.OffersCalculateRequest {
     )
 }
 
-public extension Components.Schemas.ClaimCreateRequest {
+extension Components.Schemas.ClaimCreateRequest {
     static let exampleSmartphoneDelivery: Self = .init(
         items: [.exampleSmartphone],
         routePoints: [
@@ -383,7 +402,7 @@ public extension Components.Schemas.ClaimCreateRequest {
 
 // MARK: - Array Extensions
 
-public extension [Components.Schemas.RoutePointWithAddress] {
+extension [Components.Schemas.RoutePointWithAddress] {
     static let exampleMoscowRoute: Self = [
         .exampleMoscowOffice,
         .exampleMoscowApartment
@@ -401,7 +420,7 @@ public extension [Components.Schemas.RoutePointWithAddress] {
     ]
 }
 
-public extension [Components.Schemas.ItemBase] {
+extension [Components.Schemas.ItemBase] {
     static let exampleSmallOrder: Self = [
         .exampleSmallPackage
     ]
@@ -417,7 +436,7 @@ public extension [Components.Schemas.ItemBase] {
     ]
 }
 
-public extension [Components.Schemas.CargoItem] {
+extension [Components.Schemas.CargoItem] {
     static let exampleElectronicsOrder: Self = [
         .exampleSmartphone,
         .exampleLaptop
@@ -434,7 +453,7 @@ public extension [Components.Schemas.CargoItem] {
     ]
 }
 
-public extension [Components.Schemas.RoutePointBase] {
+extension [Components.Schemas.RoutePointBase] {
     static let exampleSimpleRoute: Self = [
         .examplePickupOffice,
         .exampleDeliveryApartment
@@ -447,6 +466,45 @@ public extension [Components.Schemas.RoutePointBase] {
     ]
 }
 
-public extension [Components.Schemas.TaxiClass] {
+extension [Components.Schemas.TaxiClass] {
     static let exampleTaxiClasses: Self = [.cargo, .express, .sddLong]
+}
+
+// MARK: - A request the live test account can estimate
+
+extension Components.Schemas.ClaimCreateRequest {
+    /// Reaches `ready_for_approval` on the test account, which `exampleSmartphoneDelivery`
+    /// does not — that one lands in `estimating_failed`, so `acceptClaim` was unreachable
+    /// (TD-11). Two central-Moscow addresses a few hundred metres apart, the `courier` tariff,
+    /// and a light parcel. Verified live 2026-08-17.
+    static let exampleAcceptableCourierRun: Self = .init(
+        items: [
+            .init(
+                costCurrency: .rub,
+                costValue: "500",
+                pickupPoint: 1,
+                quantity: 1,
+                title: "Документы",
+                dropoffPoint: 2,
+                weight: 0.3
+            )
+        ],
+        routePoints: [
+            .init(
+                address: .init(fullname: "Москва, Красная площадь, 1", coordinates: [37.6208, 55.7539]),
+                contact: .init(name: "Иван Петров", phone: "+79123456789", email: "ivan.petrov@example.com"),
+                pointId: 1,
+                _type: .source,
+                visitOrder: 1
+            ),
+            .init(
+                address: .init(fullname: "Москва, Тверская улица, 7", coordinates: [37.6117, 55.7601]),
+                contact: .init(name: "Анна Сидорова", phone: "+79987654321"),
+                pointId: 2,
+                _type: .destination,
+                visitOrder: 2
+            )
+        ],
+        clientRequirements: .init(taxiClass: .courier)
+    )
 }

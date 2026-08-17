@@ -1,216 +1,194 @@
 # Test plan — YandexDeliveryExpressAPI
 
+Rewritten 2026-08-10: the plan is built. This is now a description of the suite that exists
+plus the gaps it does not cover, rather than a list of things to write.
+
 Swift Testing throughout (`import Testing`, `@Test`, `#expect`, `#require`). XCTest stays
-only for the sample app's UI automation. Today the test target contains zero tests for this
-package — see `TechDebt.md` TD-4.
+only for the sample app's UI automation.
 
-**Ordering principle.** Write every offline suite before the live one. Offline tests prove
-the client decodes what `openapi.yaml` *claims*; live tests prove the claim. The first group
-runs on every push with no credentials; the second is the only thing that validates a
-hand-authored spec, and it is expensive (`TechDebt.md` TD-6).
+**Ordering principle, unchanged.** Offline tests prove the client decodes what `openapi.yaml`
+*claims*; live tests prove the claim. The first group runs on every push with no credentials;
+the second is the only thing that validates a hand-authored spec, and it is expensive
+(`TechDebt.md` TD-6).
 
-Target: `Tests/YandexDeliveryExpressAPITests/`.
+### Supplying the credential
+
+The token lives in `~/.yandex-auth-token` — outside every repository, mode `600` — and is
+read into the environment for the length of one command:
+
+```console
+% AUTH_TOKEN="$(cat ~/.yandex-auth-token)" swift test --filter "Live API"
+```
+
+Never paste it into a shell history, a commit, a test fixture or an issue. `.gitignore`
+carries patterns (`*.token`, `*auth-token*`, `.env*`, `secrets.*`, `*.pem`) so that a copy
+made "just for a minute" inside the repository cannot be committed, but the real protection
+is that the only copy lives elsewhere.
+
+`AuthMiddlewareTests.errorsDoNotLeakTheCredential` guards the subtler leak: a `ClientError`
+renders its request through `prettyDescription`, which prints **every header field
+verbatim**. It happens not to carry the `Authorization` header, because
+swift-openapi-runtime attaches the request the *serializer* produced rather than the one the
+middleware chain modified — an implementation detail, not a promise. If that test ever goes
+red, stop running the live suites until it passes again.
+
+```console
+% swift test --skip "Live API"                       # CI default — 39 tests, no network
+% AUTH_TOKEN=… swift test                            # adds the read-only and unauthenticated live suites
+% AUTH_TOKEN=… YDE_ALLOW_MUTATING_LIVE_TESTS=1 \
+    swift test --filter "Live API (mutating)"        # creates and cancels a real claim
+% swift test --build-system swiftbuild               # also runs the localization test (TD-10)
+```
 
 ---
 
-## 1. `Tags.swift` — selectable behaviour
+## What exists
 
-Tags, not naming conventions, per `swift-testing-expert`. `swift test` filters on name
-regexes, so give the live *suite* a display name you can `--skip`; the tags are what make
-them selectable in Xcode test plans.
+`Tests/YandexDeliveryExpressAPITests/`
 
-```swift
-import Testing
+| File | Suite | Tag | Covers |
+|---|---|---|---|
+| `Tags.swift` | — | — | `.live`, `.mutating`, `.specContract`, `.regression` |
+| `Fixtures.swift` | — | — | `StubTransport`, `RecordingTransport` + `RequestRecorder` actor, `Client.stubbed` / `.recording`, six response fixtures |
+| `SampleData.swift` | — | — | Request-side samples — route points, contacts, cargo items (moved out of the shipping target, TD-12) |
+| `ClaimDecodingTests.swift` | Claim decoding | `.specContract` | The document made falsifiable offline |
+| `RoutePointEncodingTests.swift` | Route point encoding | `.specContract` | The bytes that actually leave the process |
+| `DateTranscoderTests.swift` | Date transcoding | `.specContract` | Every wire timestamp shape, and the round trip |
+| `DecimalStringTests.swift` | Decimal strings | `.specContract` | Amounts in both directions, and what is *not* an amount |
+| `AuthMiddlewareTests.swift` | Auth middleware | `.regression` | One thing it does, three it must not, and the credential it must never leak |
+| `DescriptionTests.swift` | Descriptions | `.regression` | TD-2, under a time limit |
+| `WireCapture.swift` | — | — | `CapturingTransport`, `WireLog`, `WireDrift` — records the wire and diffs it against our types |
+| `LiveExplorationTests.swift` | Live API (exploration) | `.live`, `.exploration` | Asks the API what it does; reports, never asserts |
+| `LiveUnauthenticatedTests.swift` | Live API (unauthenticated) | `.live` | The auth path, no account needed |
+| `LiveClientTests.swift` | Live API | `.live` | Read-only, credential-gated |
+| `LiveMutatingTests.swift` | Live API (mutating) | `.live`, `.mutating` | The lifecycle, double-gated |
 
-extension Tag {
-    /// Talks to the real Yandex API. Needs `AUTH_TOKEN`, may create a real claim.
-    /// Command-line escape hatch: `swift test --skip "Live API"`.
-    @Tag static var live: Self
+All three live suites are matched by `--skip "Live API"`, so one flag keeps CI offline.
 
-    /// Pins a claim `openapi.yaml` makes about the API. A failure means either the document
-    /// is wrong or Yandex changed — see the `SpecOwnership` article.
-    @Tag static var specContract: Self
+The unauthenticated suite exists because `rejectsBadCredentials` was gated on exactly the
+thing it does not need. It builds its own client with a deliberately bad token, yet inherited
+`.enabled(if: Credentials.environment != nil)` — so it never ran on the machine where it is
+cheapest, one with no `AUTH_TOKEN`. It now runs with credentials *or* with
+`YDE_ALLOW_NETWORK_TESTS=1`, and verifies most of the transport wiring — URL resolution,
+header attachment, and a documented 401 arriving as a case rather than a throw — for free.
 
-    /// Pins a bug that shipped. Deleting one of these needs a reason.
-    @Tag static var regression: Self
-}
+### Fixture provenance — read this before adding one
+
+`offersCalculateResponseJSON` is **captured from the live API** (2026-08-12); a failure
+against it means the client broke. Every other fixture is still derived from `openapi.yaml`'s
+own `examples:` and `required:` blocks, which cite Yandex's reference pages. The repository's only live-traffic record — the sample app's
+`Базовые запросы.postman_collection.json` — stores requests and no responses.
+
+That is the honest limit of this suite, and it is TD-6 with the safety off: a fixture derived
+from the document cannot catch the document being wrong. When a real response is captured,
+replace the fixture and say where it came from.
+
+## What each suite pins, and why it is worth keeping
+
+- **`cancelStateEnumsAreDistinct`** — `CancelInfoCancelState` has three cases,
+  `CancelState` has two. The spec says «Не путать с CancelState» in as many words, and it
+  decides whether cancelling is billable: `.unavailable` from `cancel-info` **cannot** be
+  echoed into `cancelClaim`. Pinning both case sets stops a future tidy-up merging them.
+- **`rejectsUnknownEnumValue`** — a `taxi_class` Yandex might add tomorrow throws rather than
+  decoding silently, and it throws as `ClientError`, not as a response case. If this ever
+  needs to pass instead, the change belongs in `openapi.yaml` (mark the enum extensible), not
+  in the test. That is `SpecOwnership` working as designed.
+- **`routePointWithAddressEncodesFlat`** — the safety net for the TD-5 flattening. The
+  `value1`/`value2` split must not reach the wire, before or after.
+- **`roundTripsWithoutLosingPrecision`** — the regression for an `encode` that truncated.
+- **`rejectsNonAmounts`** — nine strings that are not amounts, including `"807,6"`, which the
+  old reader turned into `807` rather than failing.
+- **`doesNotOverrideContentType`** / **`doesNotMutateThePath`** — both pin *deleted* code: a
+  global `Content-Type` override and an idempotency key derived from `HTTPBody.hashValue`.
+  Each failed silently when it shipped.
+- **`outputDescriptionsTerminate`** — parameterized over all six operations. Termination
+  *is* the assertion; a recursive `description` crashes the runner rather than failing a
+  test, hence the suite's time limit.
+- **`enumDescriptionsAreLocalized`** — asserts the `ru` value, because a `Bundle.main`
+  lookup (the TD-3 bug) cannot produce it. Gated on
+  `Bundle.module.localizations.contains("ru")`: under SwiftPM's native build system the
+  String Catalog is copied uncompiled and the translations do not exist to assert (TD-10).
+
+## The exploration harness — how `WorkingWithYandex` gets written
+
+`LiveExplorationTests` is the instrument, not a test in the usual sense. Yandex publishes no
+OpenAPI document and its HTML reference is incomplete, so `openapi.yaml` is a hypothesis and
+this suite is the experiment. It produced every observation in the `WorkingWithYandex` article.
+
+```console
+% AUTH_TOKEN="$(cat ~/.yandex-auth-token)" \
+    swift test --filter LiveExplorationTests --attachments-path .build/attachments
 ```
 
-## 2. `Fixtures.swift` — data and a transport stub
+**`--attachments-path` is required and the directory must exist** — SwiftPM discards
+attachments without it, and the evidence is the entire point. Under `xcodebuild`, pass
+`-resultBundlePath` and export with `xcrun xcresulttool export attachments`.
 
-The offline suites all need the same two things: realistic JSON, and a `ClientTransport`
-that returns it without a network.
+It **reports rather than asserts**: raw exchanges become attachments and findings become
+`.warning` issues, so a Yandex-side change shows up as a report instead of a red build. The
+only failures are client defects. Both mechanisms need Swift 6.2+/6.3+ respectively; this
+package's floor is well above that.
 
-- `StubTransport: ClientTransport` — returns a canned `(HTTPResponse, HTTPBody)`; init takes
-  `status:` and `json:`.
-- `Client.stubbed(status:json:)` — a `Client` wired to `StubTransport` with the real
-  `FlexibleISO8601Transcoder`, so decoding tests exercise the production configuration.
-- `RecordingTransport: ClientTransport` — captures the outgoing `HTTPRequest` and body into
-  an `actor` box, then returns a canned response. Needed by the middleware suite; **an actor,
-  not `nonisolated(unsafe) var`**, because the target is in Swift 6 language mode.
-- Fixture JSON, one constant per response, each carrying a comment naming where it came
-  from: a Yandex doc page, or the `Базовые запросы.postman_collection.json` in the sample-app
-  repository, or a captured live response. Provenance matters more here than in a package
-  with an official spec — a fixture invented from the document tests nothing.
+Three things it gives a maintainer that reading the reference cannot:
 
-Minimum fixture set: `offersCalculateResponseJSON`, `claimCreateResponseJSON`,
-`claimInfoResponseJSON`, `claimCancelInfoResponseJSON`, `errorResponseJSON` (the shared
-`{"code":…, "message":…}` shape).
+- **`WireDrift.undocumented(in:understoodAs:)`** — decodes a response into the generated type,
+  re-encodes it, and diffs the key paths. Keys in the raw payload but not the round trip are
+  fields Yandex sends and `openapi.yaml` does not model. No hand-maintained list of "documented
+  fields" to drift; the generated types *are* the list.
+- **`WireDrift.timestampShapes(in:)`** — the TD-16 census. The run on 2026-08-12 reported
+  `fraction(6 digits), offset: 21` and `no fraction, offset: 4` from a single response.
+- **The undocumented-status probe** — three deliberately malformed read-only calls. It is how
+  TD-17 was found, and it now reports "no undocumented statuses on the probed paths", because
+  the document was fixed. That closed loop is the harness working.
 
-`Fixtures.swift` also holds the request-side sample data. The package currently ships
-`Types+examples.swift` (452 lines) inside the **library** target — sample route points,
-contacts and cargo items. Decide deliberately where that belongs: previews in the sample app
-need it at runtime, so it probably stays in the library behind `#if DEBUG`; but any entry
-containing a real name, phone number or address must move to the tests or be replaced with
-obvious fiction. Check it — `YooMoneyAPIClient` had exactly this problem and its fixture
-customer was a real person's contact details.
+`CapturingTransport` sits **below** the middleware chain on purpose: a middleware would see the
+`Authorization` header this package is careful never to log.
 
----
+## Open question: the bounded retry in the mutating cleanup
 
-## 3. `ClaimDecodingTests.swift` — `.specContract`
+`LiveMutatingTests.cancel(_:_:with:)` makes one cancellation attempt and, if it fails,
+re-reads the claim for a fresh `version` and tries exactly once more.
 
-Does the generated client decode what we say Yandex returns? These are the tests that make
-`openapi.yaml` falsifiable offline.
+**For:** the version moves server-side as the claim progresses, so a stale one is the
+*expected* race, and the cost of losing it is a billable claim rather than a red test.
 
-| Test | Asserts |
-|---|---|
-| `decodesOffersCalculateResponse` | `offers` is non-empty; `price.totalPriceWithVat`, `taxiClass`, `pickupInterval.from/to` all decode; `deliveryInterval.from` is a real `Date`, not epoch zero |
-| `decodesClaimInfoResponse` | `id`, `status`, `version`, route points, `pricing` decode; `createdTs` parses |
-| `decodesClaimCancelInfoResponse` | `cancelState` decodes to `.free` / `.paid` / `.unavailable` — the value that governs whether cancelling is billable, so decoding it wrong costs money |
-| `cancelStateEnumsAreDistinct` | `CancelInfoCancelState` has three cases, `CancelState` has two. The spec calls this out (`Не путать с CancelState`), and it means `.unavailable` from `cancel-info` **cannot** be echoed into `cancelClaim`. Pin both case sets so a future "tidy-up" cannot merge them |
-| `decodesDocumentedErrorBody` | A 400 with the shared error shape lands in `.badRequest` with `message` readable — **not** thrown |
-| `reportsUndocumentedStatus` | A 418 lands in `.undocumented(statusCode: 418, _)` with the payload intact |
-| `rejectsUnknownEnumValue` | A `taxi_class` Yandex might add tomorrow throws rather than silently decoding — pins whether the enums are open or closed, which is a real spec decision |
+**Against:** a retry in a cleanup path can launder a systematic failure — an already-accepted
+claim, a token without the scope, a changed endpoint — into something that looks transient,
+at the price of two requests and a more confusing log.
 
-`rejectsUnknownEnumValue` is the one to think about before writing: if it fails, the answer
-may be to change `openapi.yaml` (mark the enum extensible) rather than to change the test.
-That is `SpecOwnership` working as designed.
+It is capped at one, and it re-reads rather than blindly repeating, so a second failure is
+evidence about something other than the version. **First data, 2026-08-12 — and it favours the third branch.** A cancellation was refused with
+`409 state_mismatch` while the claim was mid-estimation, and *the same claim cancelled
+successfully minutes later* from `estimating_failed`. So the rejection was about transient
+**state**, not about `version` — which is precisely Devin's "the helper is answering the wrong
+question" case.
 
-## 4. `RoutePointEncodingTests.swift` — `.specContract`
+The retry earns its place, but it is re-reading the wrong field. It should re-read the
+**status** and tolerate a transition, not just refresh `version`. Left as-is for now because
+one observation is not a pattern, and because changing a cleanup path on one data point is how
+you get a cleanup path nobody trusts. Run it a few more times, then fix it deliberately.
 
-The request side, which decoding tests do not touch.
+## Gaps, deliberate and otherwise
 
-| Test | Asserts |
-|---|---|
-| `routePointWithAddressEncodesFlat` | The `allOf` split does **not** reach the wire: the encoded object has `id` and `fullname` as siblings, and no `value1` / `value2` keys |
-| `encodesSnakeCaseWireKeys` | `pointId` → `point_id`, `visitOrder` → `visit_order`, `pointType` → `type` |
-| `omitsNilOptionals` | An `OfferRequirements` with everything `nil` encodes as `{}` or is omitted — the sample app relies on this to "save traffic" |
-
-`routePointWithAddressEncodesFlat` is the test that must keep passing across the
-`RoutePointWithAddress` flattening in `Roadmap.md` → Next. Write it now; it is the safety net
-for that change.
-
-## 5. `DateTranscoderTests.swift` — `.specContract`, parameterized
-
-`FlexibleISO8601Transcoder` has three parse paths. Parameterize rather than writing three
-near-identical tests.
-
-```swift
-@Test("Every timestamp shape Yandex emits parses", arguments: [
-    "2026-08-07T10:32:14.822000+03:00",   // observed: 6 fraction digits, offset
-    "2026-08-07T10:32:14+03:00",          // observed: no fraction
-    "2026-08-07T07:32:14Z",               // observed: Zulu
-])
-func parsesWireTimestamp(_ raw: String) throws { … }
-```
-
-Every argument must be a string **actually observed** from the API, cited in a comment. A
-fallback formatter with no argument backing it is dead code — delete the formatter, not the
-test (`Design.md`).
-
-Then the round-trip, which exposes a live bug:
-
-| Test | Asserts |
-|---|---|
-| `roundTripsWithoutLosingPrecision` | `decode(encode(date)) == date`. **Expect this to fail today**: `encode(_:)` uses the `withoutFractional` formatter unconditionally, so sub-second precision is discarded. Fix `encode`, don't weaken the test |
-| `throwsOnUnparseableInput` | `#expect(throws: DecodingError.self)` for `"not a date"` — the transcoder must fail loudly, not return `.distantPast` |
-
-## 6. `AuthMiddlewareTests.swift` — `.regression`
-
-Uses `RecordingTransport`.
-
-| Test | Asserts |
-|---|---|
-| `setsBearerAuthorizationHeader` | `Authorization` is exactly `Bearer <token>` |
-| `doesNotOverrideContentType` | The middleware leaves `Content-Type` to the generator. Pins the deleted line from `HANDOFF.md` Step 4 |
-| `doesNotMutateThePath` | No query parameter is appended. Pins the deleted idempotency-key experiment, whose failure mode was silent (`Design.md`) |
-| `passesThroughResponseUnmodified` | Status and body survive the middleware |
-
-## 7. `DescriptionTests.swift` — `.regression`
-
-The suite that would have caught `TechDebt.md` TD-2. A `description` that calls itself is
-invisible to the compiler and trivially visible to a test — but a stack overflow *crashes the
-test runner* rather than failing a test, so guard it with a time limit.
-
-```swift
-@Suite("Descriptions", .tags(.regression), .timeLimit(.minutes(1)))
-struct DescriptionTests { … }
-```
-
-| Test | Asserts |
-|---|---|
-| `outputDescriptionsTerminate` | Parameterized over all six operation outputs built from fixtures: `description` returns, and is non-empty. Termination *is* the assertion |
-| `descriptionDoesNotEchoItsOwnType` | `description` does not contain `"Operations."` — the tell-tale of the reflection fallback, which is what `"\(self)"` was reaching for |
-| `enumDescriptionsAreLocalized` | `Components.Schemas.CancelState.free.description` resolves through the module bundle. **Set `Locale` explicitly**; a test that passes only because the key equals the English string is not testing anything |
-
-That last one is the TD-3 regression test. The cleanest form: assert the `ru` value, since a
-`Bundle.main` lookup cannot produce it.
-
-## 8. `LiveClientTests.swift` — `.live`
-
-Credential-gated, serialized, time-limited. Modelled on `YooMoneyAPIClient/Tests/…/LiveClientTests.swift`.
-
-```swift
-@Suite(
-    "Live API",
-    .tags(.live),
-    .enabled(if: Credentials.environment != nil, "Set AUTH_TOKEN to run"),
-    .timeLimit(.minutes(1)),
-    .serialized
-)
-struct LiveClientTests { … }
-```
-
-`.serialized` is justified here, not habitual: the lifecycle test's steps depend on each
-other and on server-side state, which is exactly the case the trait exists for. It requires
-`Credentials.environment` from `HANDOFF.md` Step 7 — the current `fatalError`-based
-`fromEnvironment` makes `.enabled(if:)` impossible.
-
-| Test | Covers |
-|---|---|
-| `rejectsBadCredentials` | A bogus token returns `.unauthorized`. **Start here** — it needs no valid account and proves the auth path end to end |
-| `calculatesOffersForARealRoute` | Two Moscow addresses return at least one offer with a positive price. Read-only, costs nothing |
-| `claimLifecycle` | `createClaim` → `getClaimInfo` → `getClaimCancelInfo` → `cancelClaim`, in **one test**. Splitting it across tests would make them order-dependent, which no framework guarantees. `getClaimCancelInfo` returning `.unavailable` is a legitimate outcome — return early rather than failing |
-| `decodeReviewSweep` | Calls each read operation and *records* rather than fails on spec/response mismatches, using `withKnownIssue`. This is the auto-catch diagnostic `GitLabKit` runs; for a hand-authored spec it is the highest-value live test there is, because it turns "Yandex changed something" into a report instead of a mystery |
-
-**Guardrails.** `claimLifecycle` creates a real claim against a real account. It must cancel
-what it creates even on failure (`defer`), and it must never run in a `main`-branch CI job
-without an explicit opt-in. Ship it as a scheduled nightly job (`Roadmap.md` → Next).
-
----
+- **`acceptClaim` has no live test** — TD-11. Accepting starts the real courier search and is
+  what turns a cancellation from free into billable, so a suite that accepts cannot promise
+  to clean up after itself. Needs a sandbox account, not a better guardrail.
+- **No offline test asserts a header the generator sets** beyond `Content-Type`. If a future
+  operation adds a required header, nothing offline will notice it going missing.
+- **No CI runs any of this yet** — `Roadmap.md` → Now.
 
 ## Sample app — `YandexDostavka`
 
-The demo's value is that it *runs*, so keep its test surface small and honest.
+Unchanged, and not started; it lives in the other repository.
 
-- **Delete** the two Xcode template files that assert nothing
-  (`YandexDeliveryExpressDemoTests.swift`, and the boilerplate half of the UI tests).
-- **`ClaimFormatting` tests** (Swift Testing) — once presentation logic moves out of views
-  per `YandexDostavka/HANDOFF.md`, the formatters and derivations are plain functions over
-  plain values. Test those; do not test SwiftUI views.
-- **Validation tests** — `CalculateOffersModel.isValid` today is `routePoints.count >= 2`,
-  which accepts two points with empty addresses. Whatever the real rule becomes, it is a pure
+- **Delete** the two Xcode template files that assert nothing.
+- **`ClaimFormatting` tests** (Swift Testing) — once presentation logic moves out of views,
+  the formatters and derivations are plain functions over plain values. Test those; do not
+  test SwiftUI views.
+- **Validation tests** — `CalculateOffersModel.isValid` is `routePoints.count >= 2`, which
+  accepts two points with empty addresses. Whatever the real rule becomes, it is a pure
   function and belongs under test.
-- **Keep XCTest for `XCUIApplication`** — `swift-testing-expert` is explicit that UI
-  automation stays on XCTest. One smoke test that launches, navigates to Calculate Offers and
-  finds the submit button is worth more than a suite of view assertions.
-- **No live-network UI tests.** The app should take an injected client
-  (`YandexDostavka/HANDOFF.md`), so a UI test injects a stub and asserts on rendered state.
-
-## Running
-
-```bash
-swift test                       # everything; live suite self-skips without AUTH_TOKEN
-swift test --skip "Live API"     # CI default — no network, no credentials
-AUTH_TOKEN=… swift test          # includes live
-```
+- **Keep XCTest for `XCUIApplication`.** One smoke test that launches, navigates to Calculate
+  Offers and finds the submit button is worth more than a suite of view assertions.
+- **No live-network UI tests.** The app should take an injected client, so a UI test injects
+  a stub and asserts on rendered state.

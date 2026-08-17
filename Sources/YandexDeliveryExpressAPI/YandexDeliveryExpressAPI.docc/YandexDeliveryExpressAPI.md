@@ -65,6 +65,7 @@ client.
 
 - <doc:Design>
 - <doc:SpecOwnership>
+- <doc:WorkingWithYandex>
 - <doc:TechDebt>
 - <doc:Roadmap>
 

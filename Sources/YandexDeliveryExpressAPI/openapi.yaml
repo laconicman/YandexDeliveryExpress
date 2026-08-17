@@ -84,6 +84,16 @@ paths:
           $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '409':
+          # Observed on the wire 2026-08-12, undocumented by Yandex and missing here until a
+          # live call returned it as `.undocumented`. The request was valid JSON that the
+          # *domain* rejects — `cargo_loaders` on the `express` tariff — and the body is the
+          # shared `{code, message}` shape:
+          #   {"code":"estimating.too_many_loaders",
+          #    "message":"В выбранном кузове не получится заказать столько грузчиков"}
+          # Adding it here is what turns a caller's `.undocumented` into a `.conflict` case
+          # they can handle. See TechDebt TD-17.
+          $ref: '#/components/responses/Conflict'
         '429':
           $ref: '#/components/responses/TooManyRequests'
         '500':
@@ -875,24 +885,36 @@ components:
       - code
       - source
       properties:
+        # NB: `code` and `source` are deliberately plain strings, NOT enums.
+        #
+        # They were enums, and it was a decode-breaking mistake. On 2026-08-17 a live
+        # `claims/info` for a claim in `ready_for_approval` returned
+        # `warnings[0].source == "taxi_requirements"`, which the enum did not list, so the
+        # *entire* `ClaimResponse` failed to decode — `getClaimInfo` threw a `ClientError` and
+        # the claim became unreadable. Advisory metadata took the whole response down with it.
+        #
+        # A closed enum is right where a caller must branch exhaustively and a new value is a
+        # real decision — `taxi_class`, `cancel_state`. A warning is neither: it is advisory
+        # text, Yandex adds sources without announcement, and no caller switches on all of
+        # them. So this is the one place where being liberal in what we accept beats modelling
+        # the vocabulary. See the `WorkingWithYandex` article and TechDebt TD-19.
         code:
           type: string
           description: |
-            Тип предупреждения:
+            Тип предупреждения. Наблюдавшиеся значения (не исчерпывающий список):
             - `not_fit_in_car` - груз может не поместиться в транспортное средство;
             - `requirement_unavailable` - указанное требование недоступно и было проигнорировано;
             - `address_not_found` - указанный адрес не найден в Яндекс Картах;
             - `address_too_far` - координаты из Яндекс Карт по указанному адресу находятся далеко от переданных координат.
-          enum: [not_fit_in_car, requirement_unavailable, address_not_found, address_too_far,] # weight_limit_exceeded, size_limit_exceeded, route_too_long, delivery_time_limit, address_not_found, payment_required]
-          examples: [not_fit_in_car]
+          examples: [not_fit_in_car, requirement_unavailable]
         source:
           type: string
           description: |
-            Источник предупреждения
+            Источник предупреждения. Наблюдавшиеся значения (не исчерпывающий список):
             - `client_requirements` - предупреждение связано с требованиями клиента;
-            - `route_points` - предупреждение связано с переданными адресами.
-          enum: [client_requirements, route_validation] # cargo_validation, pricing_validation, address_validation, time_validation
-          examples: [client_requirements, cargo_validation]
+            - `route_points` - предупреждение связано с переданными адресами;
+            - `taxi_requirements` - наблюдалось на живом ответе 2026-08-17, отсутствует в документации.
+          examples: [client_requirements, taxi_requirements]
         message:
           type: string
           description: Описание предупреждения

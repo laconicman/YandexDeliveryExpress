@@ -19,6 +19,31 @@ papers over it. See <doc:SpecOwnership> for what that obligates in return.
 **Rejected:** porting `SpecSync`. A tool that normalises an upstream document is pure cost
 when there is no upstream document to normalise (YAGNI).
 
+## Wire behaviour that works is replicated, not reasoned about
+
+The standing rule for this package, and the one that overrides tidiness arguments: **when
+existing code sends a particular shape and that shape is known to have worked against the
+real API, replicate it and document the question. Only a real request can settle what Yandex
+accepts.**
+
+This exists because Yandex is not disciplined about the standards it claims to implement.
+It says ISO-8601 and does not reliably emit it. Its own document pins amounts to a pattern
+four fraction digits wide while the client that actually worked sent two. In that
+environment, a change to what we *send*, justified by symmetry or elegance or a specification
+we wrote ourselves, is a guess wearing a proof's clothing — and the feedback arrives as a
+failed delivery rather than a failed test.
+
+It cuts both ways, and the asymmetry is the point:
+
+- **Reading** is where to be liberal and where inference is cheap. A parser that accepts
+  more than it needs to costs nothing when it is wrong.
+- **Writing** is where to be conservative. Keep what shipped, write down what the
+  alternative would be and what evidence would justify it, and change it when a live call
+  says so — <doc:TechDebt> TD-15 exists to collect exactly those pending questions.
+
+Two decisions below follow from this rule rather than from first principles: the
+two-fraction-digit writer, and the fallback ladder in the date transcoder.
+
 ## Generated code is not committed
 
 The **build plugin** generates `Client.swift` and `Types.swift` into the build directory on
@@ -77,6 +102,15 @@ so in a package the lookup silently fails and the key is returned verbatim. That
 happening throughout `Types+CustomStringConvertible.swift`. `Package.swift` declares the
 String Catalog as a processed resource so `Bundle.module` exists at all.
 
+One measured caveat, because it decides what a test can assert: **SwiftPM's native build
+system does not compile `.xcstrings`.** It copies the catalog into the resource bundle
+verbatim, so under a plain `swift build` / `swift test` the module bundle reports
+`localizations == ["en"]` and every lookup returns the source string. Swift Build — Xcode,
+or `swift build --build-system swiftbuild` — runs `xcstringstool` and produces the expected
+`ru.lproj/Localizable.strings`. The `bundle:` argument is what fixes the bug either way;
+the translations simply do not exist in an artifact the native build system produced.
+Measured against Swift 6.3.3 / Xcode 26.6.
+
 ## Authentication is a middleware, and it does one thing
 
 `AuthMiddleware` sets `Authorization`. It is `package`-scoped rather than `public`: a
@@ -108,12 +142,125 @@ becomes a parameter in `openapi.yaml` and therefore an argument the caller must 
 
 ## Dates go through one transcoder
 
-Yandex returns ISO-8601 timestamps with inconsistent fractional-second precision.
-`FlexibleISO8601Transcoder` parses the modern form first and falls back for the shapes
-`Date.ISO8601FormatStyle` rejects. At the iOS 17 floor the fallback ladder is no longer an
-*OS* compatibility measure — it is a *wire-format* one, and it is justified only by the
-formats the API actually emits. Each surviving fallback is pinned by a test naming a real
-response string; a fallback with no test is dead code and should be deleted.
+Yandex returns ISO-8601 timestamps with inconsistent fractional-second precision, so
+`FlexibleISO8601Transcoder` tries a fractional-seconds `Date.ISO8601FormatStyle` and then a
+plain one. That is the whole type.
+
+It used to be a four-rung ladder — a "modern" format style followed by two `DateFormatter`
+fallbacks — and measuring it is what collapsed it. The modern rung matched *nothing*: it was
+built as `Date.ISO8601FormatStyle().time(includingFractionalSeconds: true)`, and `.time(_:)`
+**selects** the time fields rather than adding to them, so the style formatted and parsed
+`08:32:14.822` with no date part and every real timestamp fell through to the
+`DateFormatter`s. Spelled with `init(includingFractionalSeconds:timeZone:)` instead, the two
+format styles parse every shape the old ladder did — `Z` and `±hh:mm` and `±hhmm`, one, three
+or six fraction digits — and still reject `"not a date"`.
+
+The rule that produced this stands: a parse path is justified only by a wire shape the API
+actually emits, each pinned by an argument of `DateTranscoderTests.parsesWireTimestamp` with
+a citation. A rung no test names is dead code, and deleting it is the point of measuring.
+
+**Where the deleted ladder came from, because it was not written down and nearly got lost.**
+Those `DateFormatter` rungs were not defensive programming. They were the result of trial and
+error against the real API: Yandex claims to emit ISO-8601 and does not reliably honour it,
+so each rung was somebody guessing at what a real response meant and keeping what worked.
+That provenance matters twice over. It is why the ladder deserved more respect than "a
+fallback with no test", and it is why the replacement is not as safe as its line count
+suggests — two `Date.ISO8601FormatStyle` instances cover every shape the ladder did, but they
+do it by leaning on Foundation's *undocumented tolerance*: that a style built with
+`includingFractionalSeconds: true` also parses timestamps without a fraction, that it accepts
+six fraction digits, and that it accepts `+03:00` when its own default separator is omitted.
+None of that is contractual, and an explicit `dateFormat` string is deterministic where this
+is merely observed.
+
+The trade is taken deliberately — simpler, tested, and measured two OS versions below the
+build host — but the trigger for revisiting it is specific: **a decode failure on a real
+response means the tolerance moved, and the answer is to restore an explicit formatter for
+the shape that broke, not to widen a guess.** The deleted ladder is one `git show b863b2e^`
+away, and now carries its reasoning with it.
+
+**The larger caveat, and it undercuts the shape of this type rather than its details:** the
+API does not use one timestamp format. Different operations send and return different shapes,
+in both directions, despite the document describing them uniformly — reported from live
+debugging and recorded as <doc:TechDebt> TD-16. A `DateTranscoder` is installed once on the
+`Configuration` and therefore applies to every `date-time` field in every operation, so this
+package answers a non-uniform surface with a uniform rule. Reading survives that because the
+reader is permissive; **writing is the exposure**, since `encode` emits one shape everywhere.
+Treat every timestamp conclusion as scoped to the operation that produced it.
+
+One caveat this design takes on: `Date.ISO8601FormatStyle` is Foundation's, which on Apple
+platforms means the *OS's*, so "it parses six fraction digits with a colon-separated offset"
+is a claim about a parser we do not ship. It is verified on the build toolchain and on
+iOS 18.2 — two major versions below it — but **not** on the iOS 17 floor, for which no
+simulator runtime is installed. Running the suite against the oldest available runtime is
+therefore part of the CI item in <doc:Roadmap>, not an optional extra.
+
+`encode(_:)` writes fractional seconds, to millisecond granularity — three digits is what
+`Date.ISO8601FormatStyle` emits. Writing seconds only, which it used to do unconditionally,
+lost up to a whole second on every timestamp sent.
+
+The narrower claim is deliberate. Milliseconds is not lossless: a `Date` captured at runtime
+carries microseconds and still loses them, so `decode(encode(date)) == date` holds only for
+values whose sub-second part is a whole number of milliseconds. Both halves are pinned by
+`DateTranscoderTests.roundTripsWithoutLosingPrecision` — the recovered millisecond and the
+still-dropped microsecond — because a guarantee stated more strongly than the code delivers
+is how someone later builds on exact equality that was never there.
+
+## Amounts are validated against the document, not against a formatter
+
+Prices cross the wire as decimal strings, and `openapi.yaml` pins every one of them to
+`^-?[0-9]{1,14}(\.[0-9]{0,4})?$`. `Double.init?(wireDecimalString:)` checks that shape and
+then parses with the locale-independent `Double.init(_: String)`; the `en_US`
+`FloatingPointFormatStyle` is used only for **writing**.
+
+The reader accepts the four fraction digits the pattern permits; the writer emits two. That
+asymmetry is deliberate — **be liberal in what you accept, conservative in what you send.**
+The reader has to survive whatever Yandex actually puts on the wire. The writer should emit
+only a shape a real request is known to have been accepted in, and two is what the client
+that was talking to the live API before this rewrite emitted. Money is two digits anyway;
+the document's four is the pattern being loose, not an invitation.
+
+The consequence is stated rather than hidden: an amount with three or four fraction digits
+reads exactly and writes back rounded. Nothing in this API asks a caller to echo a price
+back, so no call site hits it; `DecimalStringTests` pins the asymmetry so it cannot be
+"corrected" by a symmetry argument. Widening the writer needs a live request proving Yandex
+accepts four digits — see the standing rule below.
+
+Checking the pattern rather than trusting a parser is the decision. We own the document, so
+it *is* the definition of a well-formed amount — and the parser is worse than useless here:
+`Double("807,6", format: style)` does not fail, it reads the digits before the separator and
+returns `807`. A device in a comma-decimal locale would have lost the fraction with nothing
+downstream looking wrong.
+
+**Rejected:** the previous shape, `String.double` returning `0.0` on failure. It put a member
+called `.double` on every `String` in every consuming app and answered "malformed price"
+with "free". The initializer is failable so that a caller can tell a bad amount from a
+genuine zero.
+
+## Bodies are not logged unless the caller asks
+
+`Client.init(…, bodyLoggingConfiguration:)` defaults to `.never` and passes the argument
+through. A `createClaim` body carries recipient names, phone numbers, street addresses,
+apartment and floor numbers, and door codes; there is no maximum byte count at which logging
+that by default is right. The parameter used to be accepted and then ignored in favour of
+`.upTo(maxBytes: 4000)` — the identical defect `YooMoneyAPIClient` fixed in its 2.0.
+
+Reading `OSLogLoggingMiddleware` at `52150c4` for this, and checking that reading against
+DeepWiki: header fields are never logged at all, so `Authorization` cannot reach the unified
+log under any policy; method, path and status are `privacy: .public`; bodies are
+`privacy: .auto`, so they render `<private>` in ordinary log collection even when a policy
+does let them through. One path — the failure log — ignores the policy entirely; that is
+<doc:TechDebt> TD-14, and it is bounded because it logs `localizedDescription` rather than
+the `ClientError` description that would carry the request.
+
+## Live tests are split by whether they change anything
+
+`LiveClientTests` is read-only and gated on `AUTH_TOKEN`. `LiveMutatingTests` creates a real
+claim and needs `YDE_ALLOW_MUTATING_LIVE_TESTS=1` as well, because a token cannot tell a
+test account from a production one and the difference is somebody's money. Both suites
+answer to `--skip "Live API"`.
+
+**Rejected:** one suite with the lifecycle marked `.disabled`. It was safe and useless in
+the same move — a test nothing can run is not a test, and it cannot be scheduled either.
 
 ## `Identifiable` conformances are hand-written, and that is proportionate
 
@@ -128,3 +275,4 @@ grows — <doc:Roadmap>.
 - <doc:SpecOwnership>
 - <doc:TechDebt>
 - <doc:Roadmap>
+- <doc:WorkingWithYandex>
