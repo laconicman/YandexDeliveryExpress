@@ -46,10 +46,20 @@ Each is one commit, in order, on top of a skeleton commit and a pure-rename comm
 
 In `Roadmap.md` order.
 
-**Settled since this file was last written:** TD-12 is discharged — the author confirms the
-sample addresses are fictional, and `Types+examples.swift` moved to
-`Tests/YandexDeliveryExpressAPITests/SampleData.swift`. That hands work to `YandexDostavka`,
-which consumed it in sixteen places including two view models' runtime defaults; see TD-12.
+**Settled since this file was last written**, all with live evidence:
+
+- **TD-12** — sample addresses are fictional; the data left the shipping target. `YandexDostavka`
+  now declares its own in `Models/SampleData.swift` and **builds again**. Placement checked
+  against Manferdini's course rather than guessed — see TD-12.
+- **TD-15** — both request-shape changes confirmed against the real API.
+- **TD-16** — timestamp formats vary *within one response*, measured: 21 fractional, 4 plain.
+- **TD-17** — an undocumented 409 found and fixed in `openapi.yaml`.
+- **TD-18** — the express sample was invalid and always had been.
+- **TD-11** — the blocker moved from "no test account" to "no estimable request".
+
+The credential is a **test** token. Read <doc:WorkingWithYandex> before trusting any of it
+against production; that article is the standing record of observed behaviour, and
+`LiveExplorationTests` is the instrument that writes it.
 
 ### 1. CI
 
@@ -67,8 +77,9 @@ its `Package.resolved` while this package must not.
 ### 3. Everything else
 
 `Roadmap.md` → Next and Later, and the open register: TD-5 (`value1`/`value2`), TD-9 (spec
-drafts in the sample-app repo), TD-10 (SwiftPM and `.xcstrings`), TD-11 (`acceptClaim` has
-no live test — needs a sandbox account), TD-13 (`newRoutePoint` is view-model logic).
+drafts in the sample-app repo), TD-10 (SwiftPM and `.xcstrings`), TD-11 (`acceptClaim` still
+unreached — needs an estimable request, not an account), TD-13, TD-14 (one log path ignores
+the body policy), TD-16 (per-value timestamp formats) (`newRoutePoint` is view-model logic).
 
 ## Things a future session should not re-derive
 

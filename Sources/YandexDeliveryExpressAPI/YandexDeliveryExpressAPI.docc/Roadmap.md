@@ -80,10 +80,12 @@ Credential-gated, tagged `.live`, running nightly rather than per-push. The `.un
 case is the signal to watch: one in production means the document is wrong (TD-6). The
 mutating lifecycle stays behind its second switch and out of any unattended job.
 
-### Get a sandbox account
+### Find a request the test account can estimate
 
-Without one, `acceptClaim` cannot be exercised live (TD-11) and the mutating suite has to be
-run by hand against real credentials.
+The sandbox question is answered — the credential in use is a test account — but `acceptClaim`
+is still unreached, because the sample claim goes `new` → `estimating_failed` rather than
+`ready_for_approval` and a claim can only be accepted from the latter. TD-11 lists the three
+candidate causes. `LiveExplorationTests` is the tool for varying the request until one sticks.
 
 ## Later
 
