@@ -393,6 +393,75 @@ and no offline test could tell, because a stub transport accepts whatever you se
   data used by live tests wants the same provenance discipline as sample data used for
   decoding.
 
+## TD-20 — Enum audit: which closed enums can lose a response — **open**
+
+TD-19 fixed the enum that bit us and left "audit the rest" open. This is that audit, of all
+fourteen enums in `openapi.yaml`, against one question: **if Yandex adds a value tomorrow, what
+breaks?**
+
+A closed enum in a **response** is not a validation — it is a decode-time assertion that takes
+the whole payload with it when it fails. In a **request** it costs nothing, because we only send
+values we chose.
+
+### The mechanism, verified
+
+swift-openapi-generator supports open enums via the `anyOf` pattern its own documentation
+recommends (*Useful OpenAPI patterns* → "Open enums and oneOfs"):
+
+```yaml
+anyOf:
+  - type: string
+    enum: [pending, arrived, visited, skipped]
+  - type: string
+```
+
+Tried on `PointVisitStatus` and reverted. It generates:
+
+```swift
+public struct PointVisitStatus: Codable, Hashable, Sendable {
+    @frozen public enum Value1Payload: String, … { case pending, arrived, visited, skipped }
+    public var value1: Value1Payload?      // a known value
+    public var value2: String?             // whatever else arrived
+}
+```
+
+So the cost is exact and unwelcome: **every call site becomes `status.value1 == .accepted`** —
+the `value1`/`value2` shape TD-5 calls the single worst-reading construct in this API. Buying
+decode safety with the very construct we are scheduled to remove is a trade worth making
+deliberately, not everywhere.
+
+### The audit
+
+| Enum | Direction | Verdict |
+|---|---|---|
+| `AcceptLanguage` | request only | **Keep closed.** We choose the value; no decode risk. |
+| `CancelState` | request only | **Keep closed.** We echo it; pinned by `cancelStateEnumsAreDistinct`. |
+| `ItemFiscalization.item_type` | request | **Keep closed.** Fiscalization data we author. |
+| `ItemFiscalization.vat_code_str` | request | **Keep closed.** Russian VAT codes change by legislation, not by Yandex. |
+| `ItemMark.kind` | request | **Keep closed.** |
+| `PointType` | both | **Keep closed.** Structural — `source`/`destination`/`return` is the model, not a vocabulary. |
+| `CancelInfoCancelState` | response | **Keep closed, knowingly.** A new value here *is* a real decision — it governs whether cancelling is billable — and silently reading it as an unknown string is worse than failing. The one place the assertion is the point. |
+| `PaymentMethod` | both | **Open when convenient.** `card`/`cash` is plainly incomplete for a Russian payments surface. Low call-site cost. |
+| `CargoType` | both | **Open when convenient.** Body sizes are a catalogue Yandex extends. |
+| `CargoOption` | both | **Open when convenient.** `thermobag`/`auto_courier` is a marketing list, not a closed set. |
+| `PointVisitStatus` | response only | **Open — highest value for lowest cost.** Descriptive, nobody branches exhaustively, and it rides inside every claim response, so an addition loses the claim. |
+| `Currency` | both | **Open — high risk.** `RUB`/`USD`/`EUR` while the document's own address examples include Беларусь. A `BYN` or `KZT` price would lose every offer and every claim. |
+| `TaxiClass` | both | **Open — high risk.** Yandex adds tariffs; the document already carries `sdd_long` with a note saying it should not be there, which is the tell. |
+| `ClaimStatus` | response only | **The hard one.** 27 values, and a new one loses every claim response — the largest blast radius in the document. It is also the enum callers branch on most, so `status.value1` would be felt everywhere. |
+
+- **Cost of leaving it:** each response-side closed enum is a single unannounced Yandex addition
+  away from making a whole class of response undecodable, exactly as TD-19 did. `ClaimStatus`
+  and `Currency` are the ones that would hurt.
+- **Discharge:** open the six marked above, **batched with the TD-5 flattening** in one
+  source-breaking release with a migration note (<doc:Roadmap> → Next). Batching is the point:
+  every one of these changes a public type, and callers should recompile once. `ClaimStatus`
+  needs the author's call first — decode safety against ergonomics for the most-used enum in the
+  package — and the answer may be to open it *and* provide a computed convenience so call sites
+  keep reading well.
+- **Not discharged by testing.** `rejectsUnknownEnumValue` pins that unknown values throw; it is
+  the specification of the current behaviour, not a defence of it. If these open, that test
+  changes with them.
+
 ## See Also
 
 - <doc:SpecOwnership>

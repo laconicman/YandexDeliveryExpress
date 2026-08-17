@@ -52,9 +52,10 @@ checking the repository out. Then repoint the sample app from `.package(path:)` 
 **The live suite has now been run** (2026-08-12) and TD-15 is discharged: the body-less POSTs
 are accepted without `Content-Type`, and `calculateOffers` accepts and honours a
 fractional-second `due`. It also found an undocumented 409 (TD-17) and an invalid sample
-request (TD-18), both fixed. What remains before tagging is `createClaim`'s own timestamp
-evidence, which needs the mutating suite — per TD-16, `calculateOffers` licenses no claim
-about it.
+request (TD-18), both fixed. All six operations have since been exercised live, including
+`acceptClaim` (TD-11), and a decode-breaking closed enum was found and fixed on the way
+(TD-19). What remains before tagging is a decision on the TD-20 enum audit, since opening those
+enums is source-breaking and better done before a first tag than after.
 
 ## Next
 
@@ -63,7 +64,10 @@ about it.
 Remove `value1`/`value2` from the public API by editing the document (TD-5,
 <doc:SpecOwnership>). Source-breaking, so it lands as one release with a migration note,
 together with any other schema shapes worth correcting while callers are already
-recompiling — including moving `newRoutePoint` out of the library (TD-13).
+recompiling — including moving `newRoutePoint` out of the library (TD-13) and opening the six
+response-side enums identified by the TD-20 audit. Batching matters here: each of those changes
+a public type, and the open-enum pattern reintroduces `value1`/`value2` in the same release that
+removes it elsewhere, so the two decisions want to be taken together rather than in sequence.
 
 ### Give every schema a provenance comment
 
@@ -80,12 +84,11 @@ Credential-gated, tagged `.live`, running nightly rather than per-push. The `.un
 case is the signal to watch: one in production means the document is wrong (TD-6). The
 mutating lifecycle stays behind its second switch and out of any unattended job.
 
-### Find a request the test account can estimate
+### Re-run the live suites against a production credential
 
-The sandbox question is answered — the credential in use is a test account — but `acceptClaim`
-is still unreached, because the sample claim goes `new` → `estimating_failed` rather than
-`ready_for_approval` and a claim can only be accepted from the latter. TD-11 lists the three
-candidate causes. `LiveExplorationTests` is the tool for varying the request until one sticks.
+Everything observed so far is from a **test** account, and this API's track record does not
+license assuming environments match (<doc:WorkingWithYandex>). The differences, if any, are
+recorded in that article rather than by editing the existing claims.
 
 ## Later
 
