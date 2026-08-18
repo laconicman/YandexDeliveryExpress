@@ -93,7 +93,7 @@ header.
 
 `Convertable` → `Convertible`, renamed with `git mv` in `b863b2e`.
 
-## TD-9 — Three abandoned spec drafts live in the sample-app repo — **open**
+## TD-9 — Three abandoned spec drafts lived in the sample-app repo — **discharged**
 
 `YandexDostavka/` holds `yandex-delivery-express-openapi_corrected.yaml` (457 lines),
 `_corrected_v2.yaml` (1,197 lines) and `express-delivery_corrected.yaml` (279 lines), plus
@@ -101,10 +101,17 @@ two Markdown transcriptions. The package's `openapi.yaml` (2,006 lines) supersed
 them, and `_corrected_v2.yaml` is missing `/claims/cancel-info` entirely.
 
 - **Cost:** four candidate documents, no marker saying which is authoritative; a future
-  session can regenerate from the wrong one.
-- **Discharge:** delete the drafts, or move them to an `Archive/` folder with a README
-  naming `openapi.yaml` as authoritative. Keep the Postman collection — it is a live-traffic
-  record, which is evidence, not a draft. Belongs to the sample-app repository, not this one.
+  session could regenerate from the wrong one.
+- **Discharged by:** `YandexDostavka` moving them to `Archive/` with a README that names this
+  package's `openapi.yaml` as authoritative and says why each draft is not. Done as part of
+  initialising that repository, 2026-08-18.
+
+  Two judgements worth keeping. The drafts were **moved rather than deleted**: the same-day API
+  transcription describes a surface this package does not cover yet and is the starting point
+  for the "cover the rest of the API" item in <doc:Roadmap>, so it is a lead, not a discard.
+  And the Postman collection stayed at that repository's root — it records real requests
+  against the live API, which makes it evidence, and this project has learned what evidence is
+  worth (<doc:WorkingWithYandex>).
 
 ## TD-10 — SwiftPM does not compile the String Catalog — **open**
 
