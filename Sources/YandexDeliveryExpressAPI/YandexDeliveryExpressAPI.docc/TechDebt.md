@@ -104,14 +104,15 @@ header.
 
 ## TD-9 — Three abandoned spec drafts lived in the sample-app repo — **discharged**
 
-`YandexDostavka/` holds `yandex-delivery-express-openapi_corrected.yaml` (457 lines),
+`YandexDeliveryExpressDemo/` (named `YandexDostavka` until 2026-08-27) holds
+`yandex-delivery-express-openapi_corrected.yaml` (457 lines),
 `_corrected_v2.yaml` (1,197 lines) and `express-delivery_corrected.yaml` (279 lines), plus
 two Markdown transcriptions. The package's `openapi.yaml` (2,006 lines) supersedes all of
 them, and `_corrected_v2.yaml` is missing `/claims/cancel-info` entirely.
 
 - **Cost:** four candidate documents, no marker saying which is authoritative; a future
   session could regenerate from the wrong one.
-- **Discharged by:** `YandexDostavka` moving them to `Archive/` with a README that names this
+- **Discharged by:** the demo repo moving them to `Archive/` with a README that names this
   package's `openapi.yaml` as authoritative and says why each draft is not. Done as part of
   initialising that repository, 2026-08-18.
 
@@ -203,7 +204,7 @@ reader to re-litigate — as it was here, twice, by two reviewers.
 places: fourteen `#Preview` blocks, and — less obviously — `CalculateOffersViewModel` and
 `CreateClaimViewModel`, whose `setupDefaults()` prefills the demo's forms from
 `.exampleSimpleRoute` / `.exampleSmallOrder` at *runtime*. They now live in
-`YandexDostavka/…/Models/SampleData.swift`, and that app builds again.
+`YandexDeliveryExpressDemo/…/Models/SampleData.swift`, and that app builds again.
 
 The placement is Manferdini's, checked against the source rather than assumed. *SwiftUI
 Structural Foundations* 2.3 teaches exactly this pattern — static values in type extensions so
