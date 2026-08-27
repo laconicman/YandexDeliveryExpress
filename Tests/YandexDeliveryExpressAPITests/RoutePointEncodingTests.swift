@@ -37,6 +37,15 @@ struct RoutePointEncodingTests {
         // (https://developer.apple.com/documentation/swift/mirror), so comparing the two
         // generated types pins the property sets mechanically; the wire keys stay pinned by
         // `encodesSnakeCaseWireKeys` and the test above.
+        //
+        // On the generator-internals dependency: both schemas are plain objects with no
+        // `additionalProperties` keyword, and for that shape swift-openapi-generator emits
+        // stored properties strictly 1:1 with the declared properties map — an
+        // `additionalProperties` container is only ever generated when the keyword is
+        // present (translateObjectStruct.swift / parseAdditionalProperties; verified against
+        // upstream 2026-08-27,
+        // https://deepwiki.com/search/for-a-plain-type-object-schema_8f81eb60-79af-44c5-b51b-f7661cbad2c2).
+        // If a future generator breaks this, the failure is loud and names both field sets.
         let addressFields = Set(
             Mirror(reflecting: Components.Schemas.Address(fullname: "")).children.compactMap(\.label)
         )
