@@ -18,10 +18,39 @@ import Foundation
 // MARK: - Route Point Samples
 
 extension Components.Schemas.RoutePointWithAddress {
-    static let exampleMoscowOffice: Self = .init(value1: .init(id: 1), value2: .exampleMoscowOffice)
-    static let exampleMoscowApartment: Self = .init(value1: .init(id: 2), value2: .exampleMoscowApartment)
-    static let exampleMoscowStore: Self = .init(value1: .init(id: 3), value2: .exampleMoscowStore)
-    static let exampleSPbWarehouse: Self = .init(value1: .init(id: 4), value2: .exampleSPbWarehouse)
+    static let exampleMoscowOffice: Self = .init(id: 1, address: .exampleMoscowOffice)
+    static let exampleMoscowApartment: Self = .init(id: 2, address: .exampleMoscowApartment)
+    static let exampleMoscowStore: Self = .init(id: 3, address: .exampleMoscowStore)
+    static let exampleSPbWarehouse: Self = .init(id: 4, address: .exampleSPbWarehouse)
+
+    /// Test-side bridge between the flat schema and the `Address` samples shared with
+    /// `RoutePointBase`, so each address literal exists once. The schema is flat because the
+    /// annotation-only `allOf` generated `value1`/`value2` (TD-5); the field-by-field copy is
+    /// the price, paid here rather than in the shipping target. If app callers keep writing
+    /// this same bridge, that is the Roadmap's "convenience call shorthands" item asking to
+    /// exist — in the package, now that the flattening has shipped.
+    init(id: Int64, address: Components.Schemas.Address) {
+        self.init(
+            id: id,
+            fullname: address.fullname,
+            building: address.building,
+            buildingName: address.buildingName,
+            city: address.city,
+            comment: address.comment,
+            coordinates: address.coordinates,
+            country: address.country,
+            description: address.description,
+            doorCode: address.doorCode,
+            doorCodeExtra: address.doorCodeExtra,
+            doorbellName: address.doorbellName,
+            porch: address.porch,
+            sflat: address.sflat,
+            sfloor: address.sfloor,
+            shortname: address.shortname,
+            street: address.street,
+            uri: address.uri
+        )
+    }
 }
 
 // MARK: - Item Samples

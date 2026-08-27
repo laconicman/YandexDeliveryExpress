@@ -68,6 +68,7 @@ client.
 - <doc:WorkingWithYandex>
 - <doc:TechDebt>
 - <doc:Roadmap>
+- <doc:Migration>
 
 ### Getting Started
 

@@ -54,18 +54,27 @@ resolve against, and the `.undocumented` case wrote `Payload: payload` as litera
   <doc:TechDebt>'s companion test plan). Thirty-nine offline tests run with no network and
   no credentials.
 
-## TD-5 — `value1` / `value2` is public API — **open**
+## TD-5 — `value1` / `value2` is public API — **discharged**
 
-`RoutePointWithAddress` is an annotation-only `allOf`, so the generator emits a
-`value1`/`value2` pair that callers must construct by hand. A generator implementation
-detail is part of this package's surface. Full analysis in <doc:SpecOwnership>.
+`RoutePointWithAddress` was an annotation-only `allOf`, so the generator emitted a
+`value1`/`value2` pair that callers had to construct by hand — a generator implementation
+detail as part of this package's surface, and the single worst-reading construct in the
+API. Full analysis in <doc:SpecOwnership>.
 
-- **Cost:** the single worst-reading construct in the API, reproduced at every call site
-  that builds a route point.
-- **Discharge:** flatten the schema in `openapi.yaml`. One edit, but source-breaking, so it
-  wants a minor-version bump and a note — <doc:Roadmap>.
-  `RoutePointEncodingTests.routePointWithAddressEncodesFlat` is already written as the
-  safety net: the wire format must not change when the Swift shape does.
+- **Discharged by:** flattening the schema in `openapi.yaml` (2026-08-27). The `allOf`
+  merged its two parts onto one level of the wire object anyway, so the flat declaration
+  changes the Swift spelling and not the bytes —
+  `RoutePointEncodingTests.routePointWithAddressEncodesFlat`, written in advance as the
+  safety net, passed unchanged across the edit. Source-breaking: callers now write
+  `.init(id:fullname:…)`. Ships as 0.2.0 with <doc:Migration>.
+- **The cost taken on, stated plainly:** the address properties are now declared twice in
+  the document — on `Address` and on the flat `RoutePointWithAddress` — with a comment on
+  each side pointing at the other, and `routePointStaysInSyncWithAddress` pinning the two
+  property sets mechanically so the mirror does not rest on comments alone. That
+  duplication mirrors upstream, which also documents
+  them as two entities (`CargoPointAddress` vs `RoutePointWithAddress`, the latter with a
+  *narrower* field set; ours stays wide because the client could always send those fields —
+  narrowing is a wire-behaviour change and wants live evidence first).
 
 ## TD-6 — The only real validation is the live suite — **obligation**
 
@@ -241,19 +250,20 @@ now live in its test target.
 
 </details>
 
-## TD-13 — `Types+.swift` puts view-model logic in a transport library — **open**
+## TD-13 — `Types+.swift` puts view-model logic in a transport library — **discharged**
 
-`public extension [Components.Schemas.RoutePointBase]` adds `newRoutePoint` and
-`addRoutePoint` to an `Array` of a public element type, and derives a new `pointId` as
+`public extension [Components.Schemas.RoutePointBase]` added `newRoutePoint` and
+`addRoutePoint` to an `Array` of a public element type, and derived a new `pointId` as
 `max + 1`.
 
-- **Cost:** choosing identifiers is a presentation concern — the sample app is the only
-  caller — and the derivation is simply wrong if the API ever assigns point ids server-side.
-  The extension is also unnamespaced: it applies to every array of that element type in
-  every consumer.
-- **Discharge:** move it into the sample app, or replace it with a static factory on
-  `RoutePointBase` that takes the id rather than inventing one. Bundle with the TD-5
-  flattening so callers recompile once.
+- **The cost it carried:** choosing identifiers is a presentation concern — the sample app
+  was the only caller — and the derivation is simply wrong if the API ever assigns point ids
+  server-side. The extension was also unnamespaced: it applied to every array of that
+  element type in every consumer.
+- **Discharged by:** deleting the file (2026-08-27), bundled with the TD-5 flattening so
+  callers recompile once — 0.2.0, <doc:Migration>. Nothing replaces it in the package:
+  inventing a point id is the caller's decision. The sample app pins 0.1.0 until it
+  migrates, and the seventeen lines are one `git show` away when it wants its own copy.
 
 ## TD-14 — One log path ignores `bodyLoggingConfiguration` — **open**
 
