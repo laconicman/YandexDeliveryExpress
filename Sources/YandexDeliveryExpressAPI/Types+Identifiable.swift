@@ -37,9 +37,8 @@ extension Components.Schemas.PointType: Identifiable {
     public var id: Self { self }
 }
 
-extension Components.Schemas.RoutePointWithAddress: Identifiable {
-    public var id: Int64 { value1.id }
-}
+// The flat schema (TD-5 discharge) declares `id` itself, so the conformance is empty.
+extension Components.Schemas.RoutePointWithAddress: Identifiable {}
 
 extension Components.Schemas.CalculatedOffer: Identifiable {
     public var id: Int { hashValue }

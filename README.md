@@ -61,12 +61,11 @@ import YandexDeliveryExpressAPI
 
 let client = try Client(credentials: .init(authToken: "<OAuth token>"))
 
-// Two points and one parcel. `RoutePointWithAddress` carries the point id alongside the
-// address; the `value1` / `value2` split is a generator artefact scheduled for removal —
-// see Tech Debt, TD-5.
+// Two points and one parcel. `RoutePointWithAddress` is flat: the point id sits beside
+// the address fields, exactly as on the wire.
 let route: [Components.Schemas.RoutePointWithAddress] = [
-    .init(value1: .init(id: 1), value2: .init(fullname: "Москва, Красная площадь, 1")),
-    .init(value1: .init(id: 2), value2: .init(fullname: "Москва, Арбат, 10"))
+    .init(id: 1, fullname: "Москва, Красная площадь, 1"),
+    .init(id: 2, fullname: "Москва, Арбат, 10")
 ]
 let items: [Components.Schemas.ItemBase] = [
     .init(quantity: 1, pickupPoint: 1, dropoffPoint: 2, weight: 0.5)

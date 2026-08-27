@@ -1041,6 +1041,8 @@ components:
           examples: ["₽", "$", "€", "£"]
     
     # Manually checked
+    # NB: свойства зеркалируются в плоской `RoutePointWithAddress` (TD-5) — правя здесь,
+    # поправь и там. Обе стороны сверяет RoutePointEncodingTests.routePointWithAddressEncodesFlat.
     Address:
       type: object
       description: "Адрес точки маршрута в системе Яндекс Доставки. В документации [CargoPointAddress](https://yandex.com/support/delivery-profile/ru/api/express/openapi/IntegrationV2ClaimsCreate#cargopointaddress)"
@@ -1350,21 +1352,102 @@ components:
 
     # Manually checked
     RoutePointWithAddress:
-    # TODO: В следующей версии API заменить на `RoutePointBase`
+      type: object
       description: |
-        Baze? In the doc [RoutePointWithAddress](https://yandex.com/support/delivery-profile/ru/api/express/openapi/IntegrationV2OfferCalculate#routepointwithaddress)
+        Точка маршрута для расчёта предложений: числовой ID и поля адреса в одном плоском
+        объекте — ровно так объект ходит по проводу. Раньше это выражалось annotation-only
+        `allOf` поверх `Address`; на проводе он склеивал те же свойства на одном уровне, а в
+        Swift порождал `value1`/`value2` (TD-5), поэтому написано плоско. Свойства адреса
+        намеренно дублируют `Address` — правя одно, правь второе (обе стороны сверяет
+        `RoutePointEncodingTests.routePointWithAddressEncodesFlat`).
+        In the doc [RoutePointWithAddress](https://yandex.com/support/delivery-profile/ru/api/express/openapi/IntegrationV2OfferCalculate#routepointwithaddress)
         See also: [CargoPointAddress](https://yandex.com/support/delivery-profile/ru/api/express/openapi/IntegrationV2ClaimsCreate#cargopointaddress)
-      allOf:
-        - type: object
-          required:
-            - id
-          properties:
-            id:
-              type: integer
-              format: int64
-              description: "Числовой ID точки"
-              example: 1
-        - $ref: '#/components/schemas/Address'
+        Сверено 2026-08-27: сущность Яндекса документирует только {id, fullname, coordinates,
+        country, city, street, building, porch, sfloor, sflat}; более широкий набор ниже
+        воспроизводит то, что этот клиент всегда мог отправить. Сужать — только по живому
+        свидетельству (см. Design → "Wire behaviour that works is replicated").
+      required:
+        - id
+        - fullname
+      properties:
+        id:
+          type: integer
+          format: int64
+          description: "Числовой ID точки"
+          example: 1
+        fullname:
+          type: string
+          description: "Полный адрес с указанием города, улицы и номера дома"
+          examples: ["Москва, Красная площадь, 1", "Санкт-Петербург, Большая Монетная улица, 1к1А"]
+        building:
+          type: string
+          description: "Строение или корпус"
+          examples: ["1А", "23к1А"]
+        building_name:
+          type: string
+          description: "Название апартаментов или здания"
+          examples: ["БЦ На Большой Монетной", "ТЦ Галерея"]
+        city:
+          type: string
+          description: "Город"
+          examples: ["Москва", "Санкт-Петербург"]
+        comment:
+          type: string
+          description: |
+            Комментарий для курьера. Для точки отправки используйте шаблон с информацией о магазине.
+            Для точек доставки передавайте пожелания получателя.
+          maxLength: 2000
+          examples: 
+            - "Домофон не работает"
+            - "Шлагбаум закрыт, позвонить за 10 минут"
+            - "Не звонить, спит ребенок"
+        coordinates:
+          $ref: '#/components/schemas/Coordinates'
+        country:
+          type: string
+          description: "Страна"
+          examples: ["Россия", "Беларусь"]
+        description:
+          type: string
+          description: "Географическая область, уточняющая краткий адрес до глобального соответствия"
+          examples: ["Санкт-Петербург, Россия", "Москва, Россия"]
+        door_code:
+          type: string
+          description: "Код домофона"
+          examples: ["169", "К1234"]
+        door_code_extra:
+          type: string
+          description: "Дополнительные указания по домофонам"
+          examples: ["код на вход во двор #1234, код от апартаментов #4321"]
+        doorbell_name:
+          type: string
+          description: "Имя на дверном звонке"
+          examples: ["Иванов", "Петров и Ко"]
+        porch:
+          type: string
+          description: "Подъезд (может быть буквенным)"
+          examples: ["1", "А", "3"]
+        sflat:
+          type: string
+          description: "Квартира или номер офиса"
+          examples: ["10", "205А"]
+        sfloor:
+          type: string
+          description: "Этаж"
+          examples: ["1", "2", "цоколь"]
+        shortname:
+          type: string
+          description: "Краткий адрес в пределах города (как на Таксометре)"
+          examples: ["Красная площадь, 1", "Большая Монетная улица, 1к1А"]
+        street:
+          type: string  
+          description: "Улица"
+          examples: ["Красная площадь", "Большая Монетная улица"]
+        uri:
+          type: string
+          format: uri
+          description: "URI геообъекта на картах"
+          examples: ["ymapsbm1://geo?ll=38.805%2C55.084"]
 
     # Maunally checked
     ItemBase:

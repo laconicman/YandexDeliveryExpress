@@ -54,18 +54,25 @@ resolve against, and the `.undocumented` case wrote `Payload: payload` as litera
   <doc:TechDebt>'s companion test plan). Thirty-nine offline tests run with no network and
   no credentials.
 
-## TD-5 — `value1` / `value2` is public API — **open**
+## TD-5 — `value1` / `value2` is public API — **discharged**
 
-`RoutePointWithAddress` is an annotation-only `allOf`, so the generator emits a
-`value1`/`value2` pair that callers must construct by hand. A generator implementation
-detail is part of this package's surface. Full analysis in <doc:SpecOwnership>.
+`RoutePointWithAddress` was an annotation-only `allOf`, so the generator emitted a
+`value1`/`value2` pair that callers had to construct by hand — a generator implementation
+detail as part of this package's surface, and the single worst-reading construct in the
+API. Full analysis in <doc:SpecOwnership>.
 
-- **Cost:** the single worst-reading construct in the API, reproduced at every call site
-  that builds a route point.
-- **Discharge:** flatten the schema in `openapi.yaml`. One edit, but source-breaking, so it
-  wants a minor-version bump and a note — <doc:Roadmap>.
-  `RoutePointEncodingTests.routePointWithAddressEncodesFlat` is already written as the
-  safety net: the wire format must not change when the Swift shape does.
+- **Discharged by:** flattening the schema in `openapi.yaml` (2026-08-27). The `allOf`
+  merged its two parts onto one level of the wire object anyway, so the flat declaration
+  changes the Swift spelling and not the bytes —
+  `RoutePointEncodingTests.routePointWithAddressEncodesFlat`, written in advance as the
+  safety net, passed unchanged across the edit. Source-breaking: callers now write
+  `.init(id:fullname:…)`. Ships as 0.2.0 with <doc:Migration>.
+- **The cost taken on, stated plainly:** the address properties are now declared twice in
+  the document — on `Address` and on the flat `RoutePointWithAddress` — with a comment on
+  each side pointing at the other. That duplication mirrors upstream, which also documents
+  them as two entities (`CargoPointAddress` vs `RoutePointWithAddress`, the latter with a
+  *narrower* field set; ours stays wide because the client could always send those fields —
+  narrowing is a wire-behaviour change and wants live evidence first).
 
 ## TD-6 — The only real validation is the live suite — **obligation**
 

@@ -57,13 +57,13 @@ because `type` is the wire name Yandex sends.
 
 ## Flatten annotation-only `allOf` wrappers
 
-The document contains exactly one `allOf`, on `RoutePointWithAddress`: an inline object
+The document contained exactly one `allOf`, on `RoutePointWithAddress`: an inline object
 carrying `id` composed with a `$ref` to `Address`. The generator has no way to merge those
-into one struct, so it emits a `value1`/`value2` pair — and that pair leaks all the way out
-to callers:
+into one struct, so it emitted a `value1`/`value2` pair — and that pair leaked all the way
+out to callers:
 
 ```swift
-// Today, in the sample app's CalculateOffersViewModel:
+// As it was, in the sample app's CalculateOffersViewModel:
 Components.Schemas.RoutePointWithAddress(
     value1: .init(id: $0.pointId),
     value2: $0.address
@@ -74,20 +74,23 @@ extension Components.Schemas.RoutePointWithAddress: Identifiable {
 }
 ```
 
-`value1`/`value2` is a generator implementation detail that has become part of this
+`value1`/`value2` is a generator implementation detail that had become part of this
 package's public API. Upstream tracks the general problem as
 [swift-openapi-generator#28](https://github.com/apple/swift-openapi-generator/issues/28)
-(open since 2023, `status/needs-design`), so it will not be fixed for us.
+(open since 2023, `status/needs-design`), so it was never going to be fixed for us.
 
-Because we own the document, the fix is to write `RoutePointWithAddress` as a flat object
-with `id` plus `Address`'s properties inlined, or to give `Address` an `id` and drop the
-wrapper. Either removes `value1`/`value2` from the public surface, deletes the two call
-sites above, and costs one edit. It is a **breaking change** to the package's API, which is
-why it is scheduled rather than done silently — <doc:Roadmap>.
+Because we own the document, the fix was one edit (2026-08-27): `RoutePointWithAddress` is
+now a flat object declaring `id` beside `Address`'s properties. The `allOf` merged its parts
+onto one level of the wire object anyway, so the flat schema changes the Swift spelling and
+not the bytes — `RoutePointEncodingTests.routePointWithAddressEncodesFlat` was written
+before the change and passed unchanged across it. A **breaking change** to the package's
+API, shipped as 0.2.0 with <doc:Migration> rather than done silently; the duplicated
+address properties it costs are recorded at TD-5, with a comment on each schema pointing
+at its mirror.
 
-Do **not** hide it behind hand-written factory methods the way `YooMoneyAPIClient` has to.
-That package cannot edit its document; this one can, and a factory that conceals a shape we
-control is duplicated knowledge with a fixable root cause.
+Do **not** hide a construct like this behind hand-written factory methods the way
+`YooMoneyAPIClient` has to. That package cannot edit its document; this one can, and a
+factory that conceals a shape we control is duplicated knowledge with a fixable root cause.
 
 ## Filtering is not needed
 
