@@ -21,6 +21,13 @@ The offline suite is written: decoding, request encoding, the auth middleware, t
 transcoder, the decimal strings, and the descriptions — thirty-nine tests, no network, no
 credentials.
 
+### Flatten `RoutePointWithAddress` — done 2026-08-27
+
+`value1`/`value2` is out of the public API, by editing the document (TD-5,
+<doc:SpecOwnership>); `newRoutePoint` left the library with it (TD-13). Source-breaking,
+shipped as 0.2.0 with <doc:Migration>. The enums were **not** part of this: TD-20 is
+decided, they stay closed, and the vanilla generator output is the surface.
+
 ## Now
 
 ### Add CI
@@ -59,15 +66,6 @@ source-breaking remains outstanding before a first tag.
 
 ## Next
 
-### Flatten `RoutePointWithAddress`
-
-Remove `value1`/`value2` from the public API by editing the document (TD-5,
-<doc:SpecOwnership>). Source-breaking, so it lands as one release with a migration note,
-together with any other schema shapes worth correcting while callers are already
-recompiling — including moving `newRoutePoint` out of the library (TD-13). The enums are
-**not** part of this: TD-20 is decided, they stay closed, and the vanilla generator output is
-the surface.
-
 ### Give every schema a provenance comment
 
 Now the highest-value item on this list, because one live run showed what it buys: an
@@ -102,8 +100,10 @@ retires all three copies. Same item as `YooMoneyAPIClient`'s roadmap — do it o
 ### Convenience call shorthands
 
 The six operations take verbose nested inputs. A `Client+convenience.swift` with
-`calculateOffers(route:items:language:)`-style overloads would pay for itself — but only
-*after* the `value1`/`value2` flattening, otherwise it wraps a shape that is about to change.
+`calculateOffers(route:items:language:)`-style overloads would pay for itself. The
+`value1`/`value2` flattening that blocked this has shipped (0.2.0), so it is now unblocked;
+the test-side `init(id:address:)` bridge in `SampleData.swift` is the first recorded
+evidence of which shorthand callers actually reach for.
 
 ### Generate the `Identifiable` conformances
 
