@@ -127,7 +127,7 @@ extension Operations.CalculateOffers.Input {
 //   the document *claims*; only a live call proves the claim (TD-6). Replace each one with a
 //   capture as evidence arrives, and say so here.
 //
-// The repository's other live-traffic record, `YandexDostavka/Базовые запросы.postman_collection.json`,
+// The repository's other live-traffic record, `YandexDeliveryExpressDemo/Базовые запросы.postman_collection.json`,
 // stores requests and no responses, which is why the document was the only source until now.
 
 enum Fixture {

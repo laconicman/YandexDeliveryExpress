@@ -17,7 +17,7 @@ list*; those are the *reasons*. Where they disagree, believe the catalog.
 | Code generation | Build plugin; nothing generated is committed | `Design.md` |
 | Modules | One (`YandexDeliveryExpressAPI`) | `Design.md` |
 | Spec | Hand-authored and owned; fix defects in the YAML, not in Swift | `SpecOwnership.md` |
-| Sample app | Separate repo (`YandexDostavka`), consumes this package | `YandexDostavka/HANDOFF.md` |
+| Sample app | Separate repo (`YandexDeliveryExpressDemo`), consumes this package | `YandexDeliveryExpressDemo/HANDOFF.md` |
 
 ## State: the package builds, and is tested
 
@@ -48,7 +48,7 @@ In `Roadmap.md` order.
 
 **Settled since this file was last written**, all with live evidence:
 
-- **TD-12** — sample addresses are fictional; the data left the shipping target. `YandexDostavka`
+- **TD-12** — sample addresses are fictional; the data left the shipping target. The demo app
   now declares its own in `Models/SampleData.swift` and **builds again**. Placement checked
   against Manferdini's course rather than guessed — see TD-12.
 - **TD-15** — both request-shape changes confirmed against the real API.
@@ -70,7 +70,7 @@ drift check to write.
 
 ### 2. Publish
 
-Tag `0.1.0`, push, submit to the Swift Package Index. Then repoint `YandexDostavka` from
+Tag `0.1.0`, push, submit to the Swift Package Index. Then repoint the demo app from
 `.package(path:)` to the URL — see its own `HANDOFF.md`, and note that the app must commit
 its `Package.resolved` while this package must not.
 

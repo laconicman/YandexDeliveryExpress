@@ -177,7 +177,7 @@ you get a cleanup path nobody trusts. Run it a few more times, then fix it delib
   operation adds a required header, nothing offline will notice it going missing.
 - **No CI runs any of this yet** — `Roadmap.md` → Now.
 
-## Sample app — `YandexDostavka`
+## Sample app — `YandexDeliveryExpressDemo`
 
 Unchanged, and not started; it lives in the other repository.
 

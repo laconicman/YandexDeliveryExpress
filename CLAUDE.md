@@ -2,7 +2,7 @@
 
 Unofficial Swift client for Yandex Delivery's Express (B2B Cargo) API, generated with
 [swift-openapi-generator](https://github.com/apple/swift-openapi-generator). Sibling of
-`YooMoneyAPIClient` and `GitLabKit`; companion sample app lives in `../YandexDostavka`.
+`YooMoneyAPIClient` and `GitLabKit`; companion sample app lives in `../YandexDeliveryExpressDemo`.
 
 ## Direction docs are authoritative
 
