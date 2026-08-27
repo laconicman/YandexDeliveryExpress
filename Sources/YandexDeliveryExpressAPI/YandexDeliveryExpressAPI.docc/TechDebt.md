@@ -69,7 +69,9 @@ API. Full analysis in <doc:SpecOwnership>.
   `.init(id:fullname:…)`. Ships as 0.2.0 with <doc:Migration>.
 - **The cost taken on, stated plainly:** the address properties are now declared twice in
   the document — on `Address` and on the flat `RoutePointWithAddress` — with a comment on
-  each side pointing at the other. That duplication mirrors upstream, which also documents
+  each side pointing at the other, and `routePointStaysInSyncWithAddress` pinning the two
+  property sets mechanically so the mirror does not rest on comments alone. That
+  duplication mirrors upstream, which also documents
   them as two entities (`CargoPointAddress` vs `RoutePointWithAddress`, the latter with a
   *narrower* field set; ours stays wide because the client could always send those fields —
   narrowing is a wire-behaviour change and wants live evidence first).

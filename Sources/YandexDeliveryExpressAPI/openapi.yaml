@@ -1042,7 +1042,7 @@ components:
     
     # Manually checked
     # NB: свойства зеркалируются в плоской `RoutePointWithAddress` (TD-5) — правя здесь,
-    # поправь и там. Обе стороны сверяет RoutePointEncodingTests.routePointWithAddressEncodesFlat.
+    # поправь и там. Синхронность наборов полей сверяет routePointStaysInSyncWithAddress.
     Address:
       type: object
       description: "Адрес точки маршрута в системе Яндекс Доставки. В документации [CargoPointAddress](https://yandex.com/support/delivery-profile/ru/api/express/openapi/IntegrationV2ClaimsCreate#cargopointaddress)"
@@ -1358,8 +1358,8 @@ components:
         объекте — ровно так объект ходит по проводу. Раньше это выражалось annotation-only
         `allOf` поверх `Address`; на проводе он склеивал те же свойства на одном уровне, а в
         Swift порождал `value1`/`value2` (TD-5), поэтому написано плоско. Свойства адреса
-        намеренно дублируют `Address` — правя одно, правь второе (обе стороны сверяет
-        `RoutePointEncodingTests.routePointWithAddressEncodesFlat`).
+        намеренно дублируют `Address` — правя одно, правь второе; синхронность наборов полей
+        сверяет `routePointStaysInSyncWithAddress`, байты — `routePointWithAddressEncodesFlat`.
         In the doc [RoutePointWithAddress](https://yandex.com/support/delivery-profile/ru/api/express/openapi/IntegrationV2OfferCalculate#routepointwithaddress)
         See also: [CargoPointAddress](https://yandex.com/support/delivery-profile/ru/api/express/openapi/IntegrationV2ClaimsCreate#cargopointaddress)
         Сверено 2026-08-27: сущность Яндекса документирует только {id, fullname, coordinates,

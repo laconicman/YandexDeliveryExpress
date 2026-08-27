@@ -28,6 +28,24 @@ struct RoutePointEncodingTests {
         #expect(first["value2"] == nil)
     }
 
+    @Test("The flat route point mirrors Address, field for field")
+    func routePointStaysInSyncWithAddress() {
+        // The TD-5 flattening left the mirror rule held together by comments alone: the
+        // encoding test above asserts two fields, so a property added to `Address` and not
+        // mirrored into the flat `RoutePointWithAddress` — or vice versa — would slip
+        // through review. `Mirror` lists a struct's stored properties
+        // (https://developer.apple.com/documentation/swift/mirror), so comparing the two
+        // generated types pins the property sets mechanically; the wire keys stay pinned by
+        // `encodesSnakeCaseWireKeys` and the test above.
+        let addressFields = Set(
+            Mirror(reflecting: Components.Schemas.Address(fullname: "")).children.compactMap(\.label)
+        )
+        let routePointFields = Set(
+            Mirror(reflecting: Components.Schemas.RoutePointWithAddress(id: 1, fullname: "")).children.compactMap(\.label)
+        )
+        #expect(routePointFields == addressFields.union(["id"]))
+    }
+
     @Test("Property names encode as the wire keys the document declares")
     func encodesSnakeCaseWireKeys() async throws {
         let recorder = RequestRecorder()
