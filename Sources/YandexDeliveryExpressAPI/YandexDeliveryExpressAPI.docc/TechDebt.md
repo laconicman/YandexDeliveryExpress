@@ -248,19 +248,20 @@ now live in its test target.
 
 </details>
 
-## TD-13 — `Types+.swift` puts view-model logic in a transport library — **open**
+## TD-13 — `Types+.swift` puts view-model logic in a transport library — **discharged**
 
-`public extension [Components.Schemas.RoutePointBase]` adds `newRoutePoint` and
-`addRoutePoint` to an `Array` of a public element type, and derives a new `pointId` as
+`public extension [Components.Schemas.RoutePointBase]` added `newRoutePoint` and
+`addRoutePoint` to an `Array` of a public element type, and derived a new `pointId` as
 `max + 1`.
 
-- **Cost:** choosing identifiers is a presentation concern — the sample app is the only
-  caller — and the derivation is simply wrong if the API ever assigns point ids server-side.
-  The extension is also unnamespaced: it applies to every array of that element type in
-  every consumer.
-- **Discharge:** move it into the sample app, or replace it with a static factory on
-  `RoutePointBase` that takes the id rather than inventing one. Bundle with the TD-5
-  flattening so callers recompile once.
+- **The cost it carried:** choosing identifiers is a presentation concern — the sample app
+  was the only caller — and the derivation is simply wrong if the API ever assigns point ids
+  server-side. The extension was also unnamespaced: it applied to every array of that
+  element type in every consumer.
+- **Discharged by:** deleting the file (2026-08-27), bundled with the TD-5 flattening so
+  callers recompile once — 0.2.0, <doc:Migration>. Nothing replaces it in the package:
+  inventing a point id is the caller's decision. The sample app pins 0.1.0 until it
+  migrates, and the seventeen lines are one `git show` away when it wants its own copy.
 
 ## TD-14 — One log path ignores `bodyLoggingConfiguration` — **open**
 
