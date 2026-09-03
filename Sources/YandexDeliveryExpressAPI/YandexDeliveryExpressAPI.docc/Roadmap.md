@@ -122,6 +122,14 @@ Six operations cover the Express lifecycle. Yandex's B2B Cargo API also exposes 
 delivery, courier tracking, and document retrieval. Each is new schemas in `openapi.yaml`
 plus an `operationId` — add one when a caller needs it, not before.
 
+**First caller on record — `tariffs` (2026-09-02):** YDelivery's tariff strip and
+beginner explainer ship with the provider's *published default* weight/size bounds as
+static copy, and want `supported_requirements` per geo point to make those bounds live
+data (its DesignSystem → "Field taxonomy": constraints replace hints). When this
+operation lands — spec + tests, tagged — the app swaps its static table for the answer.
+`claims/journal` and `claims/search` are the other two on record, needed by that app's
+Phase 3 (its Roadmap names them).
+
 ## See Also
 
 - <doc:Design>
