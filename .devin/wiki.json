@@ -1,0 +1,16 @@
+{
+  "repo_notes": [
+    {
+      "content": "SCOPE — what this repository is and is not. The product is YandexDeliveryExpressAPI, an unofficial Swift client for Yandex Delivery's Express (B2B Cargo) API, generated with Apple's swift-openapi-generator and exposed as-is so that every request the API accepts remains expressible. It is not a Yandex product and is not affiliated with Yandex. The decisive fact about this repository is that Yandex publishes no OpenAPI document for this API and will not supply one on request: Sources/YandexDeliveryExpressAPI/openapi.yaml was written by hand from the HTML reference and from observed traffic. That file is simultaneously the package's greatest asset and its largest liability, and the wiki should say so. Do not present the generated types as a hand-authored API surface, and do not present the specification as vendor-supplied. Several root-level Markdown files are process artefacts, not product documentation: CLAUDE.md is agent instructions, REVIEW.md is a review record, and HANDOFF.md, GitLabKit-Handoff.md and Test-Plan.md are working material.",
+      "author": "maintainer"
+    },
+    {
+      "content": "AUTHORITATIVE SOURCES, in precedence order. The DocC catalogue at Sources/YandexDeliveryExpressAPI/YandexDeliveryExpressAPI.docc/ is authoritative for architecture and direction, and README.md states plainly that where the two disagree the catalogue wins. Design.md holds every load-bearing decision with the alternative that was rejected. SpecOwnership.md explains why openapi.yaml is hand-written and what that obligates in return, and is the article a reader should reach first. WorkingWithYandex.md records what the API actually does as observed on the wire, dated — treat its claims as dated observations rather than as a contract. TechDebt.md lists every compromise carried, what it costs and what would retire it. Roadmap.md is the planned work in priority order, and Migration.md covers moving between versions.",
+      "author": "maintainer"
+    },
+    {
+      "content": "CONSUMER CONSTRAINTS that any useful page set must convey. The package requires Swift 6.1 or newer and iOS 17 / macOS 14 / tvOS 17 / watchOS 10 / visionOS 1. Requests go over URLSession through Apple's Swift OpenAPI URLSession transport. One packaging limitation is worth surfacing prominently rather than burying: when the package is built with SwiftPM directly, its user-facing strings resolve to English only, because SwiftPM's native build system copies Localizable.xcstrings into the resource bundle without compiling it. Because the specification is owned here rather than upstream, any correction to it moves the generated surface, so the relationship between openapi.yaml, the generator configuration and the published API is the spine of this package and should be documented as such.",
+      "author": "maintainer"
+    }
+  ]
+}
