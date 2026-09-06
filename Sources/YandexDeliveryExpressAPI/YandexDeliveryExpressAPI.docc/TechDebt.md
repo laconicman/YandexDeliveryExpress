@@ -511,6 +511,36 @@ where callers must switch; string where the field is prose.
   the specification of the current behaviour, not a defence of it. If these open, that test
   changes with them.
 
+## TD-21 — `ItemBase` and the `due` bounds are documentation-derived, unverified
+
+Found while a consumer's review disputed what the offers item carries (YDelivery PR #21,
+2026-09-06). Two things surfaced, and they share a cause: nobody has validated this corner
+against the live API, which is exactly what <doc:SpecOwnership> says the document costs.
+
+**`age_restricted` was missing from `ItemBase`.** Yandex's
+[IntegrationV2OfferCalculate](https://yandex.ru/support/delivery-profile/ru/api/express/openapi/IntegrationV2OfferCalculate)
+lists it on the offers item — `boolean`, optional, "Нужно ли проверить возраст клиента при
+выдаче товара" — and this document did not. Added here. The absence was harmless (an
+optional request field nobody sent) but it means the item schema was never read against the
+reference end to end, so other omissions are plausible.
+
+**Confirmed in the same pass, and worth stating because a consumer got it wrong:**
+`ItemBase` carries *no* `title` and no `cost_value`/`cost_currency`. Those are `CargoItem`'s,
+where all three are required — the create call, not the pricing call. A reviewer read the
+absence as a mapping bug in the app; it is the API's shape.
+
+**`OfferRequirements.due`'s window is quoted, not measured.** The description here says 30–240
+minutes ahead for `express` and five days for `cargo`, read from the reference. YDelivery's
+picker offers an hour to thirty days, from its own design handoff. Both cannot be right, and
+neither has been checked against the API. Until the live suite covers it, a consumer that
+trusts either number can offer a sender a pickup time the provider will refuse.
+
+- **What would discharge it:** a live case per tariff that schedules at the documented ceiling
+  and just past it, recording what the API actually answers. That is <doc:Roadmap>'s live-suite
+  item applied to `requirements`, and it is the only thing that can settle the window.
+- **Consumer note:** YDelivery has narrowed its picker to the documented bounds in the
+  meantime, deliberately choosing the stricter of the two readings.
+
 ## See Also
 
 - <doc:SpecOwnership>

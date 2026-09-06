@@ -1485,6 +1485,13 @@ components:
           description: "Вес товара в килограммах"
           minimum: 0
           example: 2.5
+        age_restricted:
+          type: boolean
+          description: |
+            Нужно ли проверить возраст клиента при выдаче товара.
+            Проверка возраста недоступна для заказов роботом доставщиком.
+          default: false
+          example: false
 
     # Manually checked
     Currency:
