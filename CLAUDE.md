@@ -50,7 +50,10 @@ Render: `swift package generate-documentation --target YandexDeliveryExpressAPI`
    transport and decoding failures are thrown `ClientError`. Do not collapse them.
 9. **Reference a debt item from code** as `// TODO(TD-n): …` so the marker and the register
    stay linked.
-10. **Replicate wire behaviour that works; change it only on evidence.** Yandex is not
+10. **Everything lands via PR** (author, 2026-09-13). `main` is protected; Devin Review
+    runs on push and `REVIEW.md` steers it. No AI attribution in commit messages or PR
+    descriptions. Direct pushes ended with the wiki-badge commit.
+11. **Replicate wire behaviour that works; change it only on evidence.** Yandex is not
     disciplined about the standards it claims to implement — it says ISO-8601 and does not
     reliably emit it. When existing code sends a shape that worked against the real API,
     keep it and document the question rather than "correcting" it toward the specification
