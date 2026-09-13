@@ -1,5 +1,7 @@
 # YandexDeliveryExpressAPI
 
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/laconicman/YandexDeliveryExpress)
+
 A Swift client for [Yandex Delivery's Express (B2B Cargo) API](https://yandex.com/support/delivery-profile/ru/api/express/openapi/),
 generated with [Swift OpenAPI Generator](https://github.com/apple/swift-openapi-generator)
 and exposed as-is, so every request the API accepts is expressible.
