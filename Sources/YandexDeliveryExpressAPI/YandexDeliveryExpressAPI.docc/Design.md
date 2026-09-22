@@ -115,7 +115,10 @@ Measured against Swift 6.3.3 / Xcode 26.6.
 
 `AuthMiddleware` sets `Authorization`. It is `package`-scoped rather than `public`: a
 caller who needs different headers writes their own middleware and passes it, which is the
-composable answer and keeps this type from growing options.
+composable answer and keeps this type from growing options. The convenience
+`Client.init(…, middlewares:)` is where a caller's chain is passed; it runs *after*
+`AuthMiddleware`, so each entry sees the authorized request, `Authorization` included —
+visibility a capture sink wants and must not persist (<doc:TechDebt> TD-23).
 
 The generator can *model* a security scheme but cannot *perform* one, so authentication is
 a middleware in any design. What is worth stating is what the middleware must **not** do:
@@ -238,8 +241,10 @@ genuine zero.
 
 ## Bodies are not logged unless the caller asks
 
-`Client.init(…, bodyLoggingConfiguration:)` defaults to `.never` and passes the argument
-through. A `createClaim` body carries recipient names, phone numbers, street addresses,
+`Client.init(…, bodyLoggingConfiguration:)` defaults to `.never` and forwards to
+`Client.init(…, middlewares:)` — the slot where a caller composes the whole post-auth
+chain: a configured `OSLogLoggingMiddleware`, a wire-capture sink, anything
+`ClientMiddleware` allows. A `createClaim` body carries recipient names, phone numbers, street addresses,
 apartment and floor numbers, and door codes; there is no maximum byte count at which logging
 that by default is right. The parameter used to be accepted and then ignored in favour of
 `.upTo(maxBytes: 4000)` — the identical defect `YooMoneyAPIClient` fixed in its 2.0.
