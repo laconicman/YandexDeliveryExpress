@@ -541,6 +541,31 @@ trusts either number can offer a sender a pickup time the provider will refuse.
 - **Consumer note:** YDelivery has narrowed its picker to the documented bounds in the
   meantime, deliberately choosing the stricter of the two readings.
 
+## TD-22 — `cancel-info` prices read as the fee, are documented as delivery cost
+
+Found building YDelivery's cancel surface (2026-09-22), checked against the
+[Russian reference](https://yandex.com/support/delivery-profile/ru/api/express/openapi/IntegrationV2ClaimsCancelInfo)
+— the precise edition: the same doc exists in English, but Russian is what the
+specification was hand-written from.
+
+Both `price` and `price_with_vat` are described as «Стоимость доставки» — the *delivery*
+cost — yet they arrive on a response whose only other payload is `cancel_state`. The
+reference's own example answers `"cancel_state": "free"` *with* `"price": "12.50"`, which
+suggests the field may describe the run rather than the charge; whether a paid
+cancellation bills the delivery price or a separate fee, the document does not say.
+The sibling page's `claims/cancel` example returns `"status": "new"` on a cancelled
+claim — plausibly a stale example (the package's own decode fixture shows
+`"cancelled"` arriving), plausibly a pre-transition echo; the schema cannot say which.
+
+- **What would discharge it:** one live cancellation watched end to end — `cancel-info`
+  while the search runs and again after courier arrival, then `cancel` with the
+  advertised version — recording which field carries the fee and which status the 200
+  actually returns. Until then the wire shapes here are the document's best reading,
+  not measurements.
+- **Consumer note:** YDelivery quotes `price_with_vat` falling back to `price`, worded
+  as what cancelling costs — the same with-VAT rule its offers mapping already follows —
+  and re-reads the claim after a 200 rather than trusting the response's `status`.
+
 ## See Also
 
 - <doc:SpecOwnership>
