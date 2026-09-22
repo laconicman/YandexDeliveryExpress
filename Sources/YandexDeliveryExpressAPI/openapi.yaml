@@ -415,8 +415,13 @@ components:
     # Maually checked
     OffersCalculateRequest:
       type: object
+      # `items` marked required by live evidence, 2026-09-22: omitting it returns
+      # 400 {"code":"400","message":"...missing required field 'items'"} and an
+      # empty array returns 400 «incorrect size, must be 1 <= 0». The field was
+      # documented optional upstream; the wire disagrees (TD-17's pattern).
       required:
         - route_points
+        - items
       properties:
         route_points:
           type: array
