@@ -92,6 +92,7 @@ struct RoutePointEncodingTests {
         let due = Date(timeIntervalSince1970: 1_754_555_534.5)
         let request = Components.Schemas.OffersCalculateRequest(
             routePoints: .exampleMoscowRoute,
+            items: .exampleSmallOrder,
             requirements: .init(due: due)
         )
 
@@ -130,12 +131,13 @@ struct RoutePointEncodingTests {
     @Test("Nil optionals are omitted rather than sent as null")
     func omitsNilOptionals() async throws {
         // The sample app relies on this to "save traffic", and Yandex rejects some nulls
-        // it accepts as absent.
+        // it accepts as absent. `items` can no longer be the probe — the wire demands it
+        // (required since 2026-09-22's live evidence) — so `requirements` stands in.
         let recorder = RequestRecorder()
         let client = try Client.recording(recorder: recorder)
         let request = Components.Schemas.OffersCalculateRequest(
             routePoints: .exampleMoscowRoute,
-            requirements: .init()
+            items: .exampleSmallOrder
         )
 
         _ = try await client.calculateOffers(headers: .init(acceptLanguage: .ru), body: .json(request))
@@ -143,8 +145,8 @@ struct RoutePointEncodingTests {
         let body = try #require(await recorder.requestBody)
         let json = try #require(try JSONSerialization.jsonObject(with: Data(body.utf8)) as? [String: Any])
 
-        #expect(json["items"] == nil)
-        let requirements = try #require(json["requirements"] as? [String: Any])
-        #expect(requirements.isEmpty)
+        #expect(json["requirements"] == nil)
+        let items = try #require(json["items"] as? [[String: Any]])
+        #expect(items.isEmpty == false)
     }
 }
