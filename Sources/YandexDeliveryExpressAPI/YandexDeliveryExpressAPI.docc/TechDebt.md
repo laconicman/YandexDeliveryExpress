@@ -554,8 +554,9 @@ reference's own example answers `"cancel_state": "free"` *with* `"price": "12.50
 suggests the field may describe the run rather than the charge; whether a paid
 cancellation bills the delivery price or a separate fee, the document does not say.
 The sibling page's `claims/cancel` example returns `"status": "new"` on a cancelled
-claim — plausibly a stale example (the package's own decode fixture shows
-`"cancelled"` arriving), plausibly a pre-transition echo; the schema cannot say which.
+claim — plausibly a stale example, plausibly a pre-transition echo. The package's
+decode fixture answers `"cancelled"`, but that fixture is schema-derived like this
+document, not a captured wire response — it cannot say which reading is true.
 
 - **What would discharge it:** one live cancellation watched end to end — `cancel-info`
   while the search runs and again after courier arrival, then `cancel` with the
