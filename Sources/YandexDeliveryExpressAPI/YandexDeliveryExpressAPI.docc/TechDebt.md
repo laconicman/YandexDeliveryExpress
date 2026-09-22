@@ -541,6 +541,7 @@ trusts either number can offer a sender a pickup time the provider will refuse.
 - **Consumer note:** YDelivery has narrowed its picker to the documented bounds in the
   meantime, deliberately choosing the stricter of the two readings.
 
+<<<<<<< HEAD
 ## TD-22 — `cancel-info` prices read as the fee, are documented as delivery cost
 
 Found building YDelivery's cancel surface (2026-09-22), checked against the
@@ -566,6 +567,22 @@ document, not a captured wire response — it cannot say which reading is true.
 - **Consumer note:** YDelivery quotes `price_with_vat` falling back to `price`, worded
   as what cancelling costs — the same with-VAT rule its offers mapping already follows —
   and re-reads the claim after a 200 rather than trusting the response's `status`.
+
+## TD-23 — Consumer middleware sees the bearer token — **accepted**
+
+Surfaced by review of the `middlewares:` slot (PR #10, 2026-09-22): `AuthMiddleware` runs
+first, so a consumer's middleware receives the *authorized* request — `Authorization:
+Bearer …` included. That visibility is the point of the slot — a wire-capture sink sees
+the exchange the provider saw — and it is also exposure: a sink that persists headers
+writes the long-lived OAuth token wherever it writes.
+
+- **Why accepted:** scrubbing the header before the consumer chain would make the slot
+  observe a request that never crossed the wire — a capture that can't be trusted is
+  worse than none. Consumers are trusted code in their own process; the discipline is
+  that sinks record bodies and statuses, never headers.
+- **What would discharge it:** nothing technical is owed while sinks honor the
+  discipline; if a sink ever needs headers, an internal scrub-and-restore shim belongs
+  in this init. Revisit if a capture is ever shared beyond its collecting user.
 
 ## See Also
 

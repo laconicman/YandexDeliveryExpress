@@ -98,6 +98,52 @@ extension Client {
     }
 }
 
+@Suite("The middleware slot")
+struct MiddlewareSlotTests {
+    /// A consumer middleware sits in the chain and sees the operation — and the
+    /// authorized request, `Authorization` header included (TD-23). The probe
+    /// short-circuits `next`, so no network is involved.
+    @Test("An injected middleware sees the authorized request")
+    func injectedMiddlewareSeesAuthorizedRequest() async throws {
+        let probe = Probe()
+        let client = try Client(
+            credentials: Credentials(authToken: "s3cret"),
+            middlewares: [ProbeMiddleware(probe: probe)]
+        )
+
+        _ = try await client.calculateOffers(.sample)
+
+        #expect(await probe.operationID == "calculateOffers")
+        #expect(await probe.authorization == "Bearer s3cret")
+    }
+}
+
+private actor Probe {
+    private(set) var operationID: String?
+    private(set) var authorization: String?
+    func record(operationID: String, authorization: String?) {
+        self.operationID = operationID
+        self.authorization = authorization
+    }
+}
+
+private struct ProbeMiddleware: ClientMiddleware {
+    let probe: Probe
+    func intercept(
+        _ request: HTTPRequest,
+        body: HTTPBody?,
+        baseURL: URL,
+        operationID: String,
+        next: (HTTPRequest, HTTPBody?, URL) async throws -> (HTTPResponse, HTTPBody?)
+    ) async throws -> (HTTPResponse, HTTPBody?) {
+        await probe.record(
+            operationID: operationID,
+            authorization: request.headerFields[.authorization]
+        )
+        return (HTTPResponse(status: .ok), HTTPBody(#"{"offers":[]}"#))
+    }
+}
+
 // MARK: - Drift detection
 
 /// Compares what the API sent against what our generated types understand.
