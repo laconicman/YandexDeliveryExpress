@@ -43,3 +43,11 @@ extension Components.Schemas.RoutePointWithAddress: Identifiable {}
 extension Components.Schemas.CalculatedOffer: Identifiable {
     public var id: Int { hashValue }
 }
+
+// The app's claims list enumerates search results and journal events in SwiftUI.
+extension Components.Schemas.ClaimResponse: Identifiable {}
+
+extension Components.Schemas.JournalEvent: Identifiable {
+    /// `operation_id` is the event's position in the journal — unique and monotonic.
+    public var id: Int64 { operationId }
+}

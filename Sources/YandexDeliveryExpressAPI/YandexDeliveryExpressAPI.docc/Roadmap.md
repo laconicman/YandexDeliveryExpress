@@ -28,17 +28,18 @@ credentials.
 shipped as 0.2.0 with <doc:Migration>. The enums were **not** part of this: TD-20 is
 decided, they stay closed, and the vanilla generator output is the surface.
 
+### Claims `journal` and `search` — done 2026-09-23
+
+The `0.3.0` milestone. YDelivery's Phase 3 needs a claims list: a cancellable claim is only
+cancellable if the user can find it, and the app's minimal list loses orders. Both
+operations are in `openapi.yaml`, verified against the Russian reference and the live wire
+(create → cancel lifecycle, no claim ever accepted — <doc:WorkingWithYandex>). Search's
+body is the provider's real `oneOf` — the server itself says `cannot be parsed as a
+variant`. The journal carries **no coordinates** — status/price events plus
+`current_point_id` — enough for stop-granularity progress; the app's store already keys
+orders by `claimID`, so the join key is settled.
+
 ## Now
-
-### Claims `journal` and `search` — the `0.3.0` milestone (author's call, 2026-09-23)
-
-YDelivery's Phase 3 needs a claims list: a cancellable claim is only cancellable if the
-user can find it, and the app's minimal list loses orders. The journal carries **no
-coordinates** — status/price events plus `current_point_id` — enough for stop-granularity
-progress. Spec + tests, tagged `0.3.0`; the app's store already keys orders by `claimID`,
-so the join key is settled. Verify the op set against the provider docs before writing
-YAML (`claims/journal`, `claims/search` if it exists); rule 11 applies — replicate wire
-shapes, change only on live evidence.
 
 ### Add CI
 
@@ -137,8 +138,7 @@ beginner explainer ship with the provider's *published default* weight/size boun
 static copy, and want `supported_requirements` per geo point to make those bounds live
 data (its DesignSystem → "Field taxonomy": constraints replace hints). When this
 operation lands — spec + tests, tagged — the app swaps its static table for the answer.
-`claims/journal` and `claims/search` are the other two on record, needed by that app's
-Phase 3 (its Roadmap names them).
+`claims/journal` and `claims/search` shipped in `0.3.0` for that app's Phase 3.
 
 ## See Also
 

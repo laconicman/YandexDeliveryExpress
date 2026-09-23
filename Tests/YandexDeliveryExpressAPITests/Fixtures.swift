@@ -271,6 +271,243 @@ enum Fixture {
     }
     """#
 
+    /// `POST /claims/journal` → 200. **Captured from the live API on 2026-09-23** — the four
+    /// events of one test claim's create → estimate → ready_for_approval → cancel lifecycle,
+    /// verbatim. Two things no document-derived fixture would have shown: the terminal event
+    /// carries `resolution: "failed"` for a *user-initiated* cancel, and `revision` skips —
+    /// `new` is revision 1, `estimating` is 3. The cursor was a signed JWT
+    /// (`{version, last_known_id, holes}`); its signature is zeroed like the offer payloads
+    /// above. The client must treat it as opaque either way.
+    static let claimsJournalResponseJSON = #"""
+    {
+      "cursor": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzUxMiJ9.eyJ2ZXJzaW9uIjoxLCJsYXN0X2tub3duX2lkIjo4NywiaG9sZXMiOltdfQ.0000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+      "events": [
+        {
+          "operation_id": 84,
+          "claim_id": "01a0cd38be93807496944ebfc9654d02",
+          "change_type": "status_changed",
+          "updated_ts": "2026-09-23T07:44:03.849724+00:00",
+          "new_status": "new",
+          "revision": 1,
+          "current_point_id": 17594193737507
+        },
+        {
+          "operation_id": 85,
+          "claim_id": "01a0cd38be93807496944ebfc9654d02",
+          "change_type": "status_changed",
+          "updated_ts": "2026-09-23T07:44:04.142087+00:00",
+          "new_status": "estimating",
+          "revision": 3,
+          "current_point_id": 17594193737507
+        },
+        {
+          "operation_id": 86,
+          "claim_id": "01a0cd38be93807496944ebfc9654d02",
+          "change_type": "status_changed",
+          "updated_ts": "2026-09-23T07:44:04.402413+00:00",
+          "new_status": "ready_for_approval",
+          "revision": 4,
+          "current_point_id": 17594193737507
+        },
+        {
+          "operation_id": 87,
+          "claim_id": "01a0cd38be93807496944ebfc9654d02",
+          "change_type": "status_changed",
+          "updated_ts": "2026-09-23T07:44:53.304895+00:00",
+          "new_status": "cancelled",
+          "resolution": "failed",
+          "revision": 5,
+          "current_point_id": 17594193737507
+        }
+      ]
+    }
+    """#
+
+    /// `POST /claims/journal` → 200 with an empty page — the shape a first sync sees.
+    /// Document-shaped (`{"cursor", "events": []}`), verified live 2026-09-23.
+    static let claimsJournalEmptyJSON = #"""
+    {
+      "cursor": "opaque-journal-cursor",
+      "events": []
+    }
+    """#
+
+    /// `POST /claims/search` → 200. **Captured from the live API on 2026-09-23** — the same
+    /// claim as the journal fixture, filtered by `claim_id`, cancelled and therefore with
+    /// `visit_status: "skipped"` on every point. `corp_client_id` is zeroed — it is the
+    /// account identifier and is never committed (see `WorkingWithYandex`).
+    ///
+    /// Deliberately kept verbatim beyond that: `droppof_point` next to `dropoff_point`, a
+    /// top-level `taxi_offer` the reference does not document, a *numeric* `price_raw`
+    /// inside it, and `warnings[].source: "taxi_requirements"`. Extra keys must keep
+    /// decoding harmlessly — that tolerance is part of the contract this fixture pins.
+    static let searchClaimsResponseJSON = #"""
+    {
+      "claims": [
+        {
+          "id": "01a0cd38be93807496944ebfc9654d02",
+          "corp_client_id": "00000000000000000000000000000000",
+          "items": [
+            {
+              "pickup_point": 17594193737507,
+              "dropoff_point": 17594193737508,
+              "droppof_point": 17594193737508,
+              "title": "Документы",
+              "weight": 0.3,
+              "cost_value": "500.00",
+              "cost_currency": "RUB",
+              "quantity": 1,
+              "age_restricted": false
+            }
+          ],
+          "route_points": [
+            {
+              "id": 17594193737507,
+              "contact": {
+                "name": "Иван Петров",
+                "phone": "+79123456789",
+                "email": "ivan.petrov@example.com"
+              },
+              "address": {
+                "fullname": "Москва, Красная площадь, 1",
+                "shortname": "Красная площадь, 1",
+                "coordinates": [37.6208, 55.7539],
+                "country": "Россия",
+                "city": "Москва",
+                "street": "Красная площадь",
+                "building": "1"
+              },
+              "type": "source",
+              "visit_order": 1,
+              "visit_status": "skipped",
+              "skip_confirmation": false,
+              "leave_under_door": false,
+              "meet_outside": false,
+              "no_door_call": false,
+              "expected_visit_interval": {
+                "from": "2026-09-23T07:44:03.700342+00:00",
+                "to": "2026-09-23T08:01:03.700342+00:00"
+              },
+              "visited_at": {
+                "actual": "2026-09-23T07:44:52.917869+00:00"
+              }
+            },
+            {
+              "id": 17594193737508,
+              "contact": {
+                "name": "Анна Сидорова",
+                "phone": "+79987654321"
+              },
+              "address": {
+                "fullname": "Москва, Тверская улица, 7",
+                "shortname": "Тверская улица, 7",
+                "coordinates": [37.6117, 55.7601],
+                "country": "Россия",
+                "city": "Москва",
+                "street": "Тверская улица",
+                "building": "7"
+              },
+              "type": "destination",
+              "visit_order": 2,
+              "visit_status": "skipped",
+              "skip_confirmation": false,
+              "leave_under_door": false,
+              "meet_outside": false,
+              "no_door_call": false,
+              "expected_visit_interval": {
+                "from": "2026-09-23T07:44:03.700342+00:00",
+                "to": "2026-09-23T08:27:17.700342+00:00"
+              },
+              "visited_at": {
+                "actual": "2026-09-23T07:44:52.917869+00:00"
+              }
+            },
+            {
+              "id": 17594193737509,
+              "contact": {
+                "name": "Иван Петров",
+                "phone": "+79123456789",
+                "email": "ivan.petrov@example.com"
+              },
+              "address": {
+                "fullname": "Москва, Красная площадь, 1",
+                "shortname": "Красная площадь, 1",
+                "coordinates": [37.6208, 55.7539],
+                "country": "Россия",
+                "city": "Москва",
+                "street": "Красная площадь",
+                "building": "1"
+              },
+              "type": "return",
+              "visit_order": 3,
+              "visit_status": "skipped",
+              "skip_confirmation": false,
+              "leave_under_door": false,
+              "meet_outside": false,
+              "no_door_call": false,
+              "visited_at": {
+                "actual": "2026-09-23T07:44:52.917869+00:00"
+              }
+            }
+          ],
+          "current_point_id": 17594193737507,
+          "status": "cancelled",
+          "version": 1,
+          "user_request_revision": "1",
+          "error_messages": [],
+          "skip_door_to_door": false,
+          "skip_client_notify": false,
+          "skip_emergency_notify": false,
+          "skip_act": false,
+          "optional_return": false,
+          "eta": 10,
+          "created_ts": "2026-09-23T07:44:03.349769+00:00",
+          "updated_ts": "2026-09-23T07:44:52.917869+00:00",
+          "last_status_change_ts": "2026-09-23T07:44:52.917869+00:00",
+          "taxi_offer": {
+            "offer_id": "cargo-pricing/v14/c101dc98-d331-410c-97fc-5245b4c8fcb7/pg-2/r-1",
+            "price_raw": 404,
+            "price": "492.8800"
+          },
+          "pricing": {
+            "offer": {
+              "offer_id": "cargo-pricing/v14/c101dc98-d331-410c-97fc-5245b4c8fcb7/pg-2/r-1",
+              "price_raw": 404,
+              "price": "492.8800",
+              "valid_until": "2026-09-23T07:54:03.850248+00:00"
+            },
+            "currency": "RUB",
+            "currency_rules": {
+              "code": "RUB",
+              "text": "RUB",
+              "template": "RUB",
+              "sign": "RUB"
+            },
+            "final_price": "0"
+          },
+          "client_requirements": {
+            "taxi_class": "courier"
+          },
+          "matched_cars": [
+            {
+              "taxi_class": "courier",
+              "door_to_door": true
+            }
+          ],
+          "warnings": [
+            {
+              "source": "taxi_requirements",
+              "code": "requirement_unavailable",
+              "message": "Опция «Курьер Про» недоступна"
+            }
+          ],
+          "revision": 5
+        }
+      ],
+      "cursor": "eyJvZmZzZXQiOjAsImxpbWl0IjoxLCJjbGFpbV9pZCI6IjAxYTBjZDM4YmU5MzgwNzQ5Njk0NGViZmM5NjU0ZDAyIiwiY3JlYXRlZF90byI6IjIwMjYtMDktMjNUMDc6NDQ6MDMuMzQ5NzY5KzAwOjAwIn0="
+    }
+    """#
+
     /// The `{code, message}` body every documented non-2xx shares. Shape and values from
     /// `ErrorResponse`.
     static let errorResponseJSON = #"""

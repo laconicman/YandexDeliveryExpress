@@ -90,6 +90,29 @@ struct LiveClientTests {
             }
             Issue.record("Undocumented status \(statusCode): \(payload)")
         }
+
+        // The discovery pair: both are read-only, and each is a `.undocumented` away from
+        // being a spec bug report rather than a failure.
+        await withKnownIssue("claims/journal did not match openapi.yaml", isIntermittent: true) {
+            let response = try await client.getClaimsJournal(query: .init(limit: 10))
+            guard case .undocumented(let statusCode, let payload) = response else {
+                _ = try response.ok.body.json
+                return
+            }
+            Issue.record("Undocumented status \(statusCode): \(payload)")
+        }
+
+        await withKnownIssue("claims/search did not match openapi.yaml", isIntermittent: true) {
+            let response = try await client.searchClaims(
+                headers: .init(acceptLanguage: .ru),
+                body: .json(.SearchClaimsRequestCorp(.init(limit: 1)))
+            )
+            guard case .undocumented(let statusCode, let payload) = response else {
+                _ = try response.ok.body.json
+                return
+            }
+            Issue.record("Undocumented status \(statusCode): \(payload)")
+        }
     }
 
 }
