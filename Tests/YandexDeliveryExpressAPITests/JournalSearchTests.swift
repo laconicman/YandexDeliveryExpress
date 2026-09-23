@@ -155,12 +155,68 @@ struct JournalSearchTests {
         )
 
         let claim = try #require(try? response.ok.body.json.claims.first)
-        #expect(claim.routePoints.first?.handoverStatus == .completed)
+        #expect(claim.routePoints.first?.handoverStatus == "completed")
         let package = try #require(claim.packages?.first)
         #expect(package.packageId == "a8e5b0e6-3d67-4d6f-89a5-3b6c1a0e4f5c")
-        #expect(package.packageType == .other)
+        #expect(package.packageType == "other")
         #expect(package.pickupPoint == 17_594_193_737_507)
         #expect(claim.performerCancelReasons == ["example"])
+    }
+
+    @Test("A package type or handover phase Yandex invents tomorrow decodes as a string")
+    func decodesUnknownPackageTypeAndHandoverStatus() async throws {
+        // `package_type`/`handover_status` are plain strings on purpose — the same boundary
+        // as `new_currency` and `warnings[].source` (TD-19/TD-20): descriptive response
+        // fields nobody branches on must not be able to kill the whole claim. `"crate"` and
+        // `"teleporting"` are values the reference has never listed.
+        let json = Fixture.searchClaimsResponseJSON
+            .replacingOccurrences(
+                of: #""visit_status": "skipped""#,
+                with: #"""
+                    "visit_status": "skipped",
+                    "handover_status": "teleporting"
+                    """#
+            )
+            .replacingOccurrences(
+                of: #""current_point_id": 17594193737507"#,
+                with: #"""
+                    "current_point_id": 17594193737507,
+                    "packages": [
+                      {
+                        "package_id": "a8e5b0e6-3d67-4d6f-89a5-3b6c1a0e4f5c",
+                        "package_type": "crate",
+                        "pickup_point": 17594193737507,
+                        "dropoff_point": 17594193737508
+                      }
+                    ]
+                    """#
+            )
+        let client = try Client.stubbed(json: json)
+
+        let response = try await client.searchClaims(
+            headers: .init(acceptLanguage: .ru),
+            body: .json(.SearchClaimsRequestCorp(.init(limit: 50)))
+        )
+
+        let claim = try #require(try? response.ok.body.json.claims.first)
+        #expect(claim.routePoints.first?.handoverStatus == "teleporting")
+        #expect(claim.packages?.first?.packageType == "crate")
+    }
+
+    @Test("A zero-limit page decodes — claims empty, cursor absent")
+    func decodesEmptySearchPage() async throws {
+        // Live-verified 2026-09-23: `{"limit": 0}` is legal and answers `200 {"claims":[]}`
+        // with no `cursor` key at all — the optional cursor really does go absent.
+        let client = try Client.stubbed(json: Fixture.searchClaimsEmptyJSON)
+
+        let response = try await client.searchClaims(
+            headers: .init(acceptLanguage: .ru),
+            body: .json(.SearchClaimsRequestCorp(.init(limit: 0)))
+        )
+
+        let page = try #require(try? response.ok.body.json)
+        #expect(page.claims.isEmpty)
+        #expect(page.cursor == nil)
     }
 
     // MARK: Search — encoding

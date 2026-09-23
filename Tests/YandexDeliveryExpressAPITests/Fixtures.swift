@@ -332,6 +332,15 @@ enum Fixture {
     }
     """#
 
+    /// `POST /claims/search` → 200 with an empty page — what `{"limit": 0}` answered live
+    /// 2026-09-23: a bare claims array, no `cursor` key at all. Pins that the optional
+    /// cursor really is absent sometimes.
+    static let searchClaimsEmptyJSON = #"""
+    {
+      "claims": []
+    }
+    """#
+
     /// `POST /claims/search` → 200. **Captured from the live API on 2026-09-23** — the same
     /// claim as the journal fixture, filtered by `claim_id`, cancelled and therefore with
     /// `visit_status: "skipped"` on every point. `corp_client_id` is zeroed — it is the

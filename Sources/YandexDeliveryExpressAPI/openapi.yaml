@@ -857,7 +857,14 @@ components:
           description: Номер заказа из системы клиента. Передается для точки типа destination.
           examples: ["100"]
         handover_status:
-          $ref: '#/components/schemas/HandoverStatusOnPoint'
+          # Намеренно string, а не замкнутый enum: статус передачи роботом — описательная
+          # фаза прогресса; новая фаза не должна ронять заявку целиком (TD-19/TD-20).
+          type: string
+          description: |
+            Статус передачи груза роботом-доставщиком.
+            [HandoverStatusOnPoint](https://yandex.com/support/delivery-profile/ru/api/express/openapi/IntegrationV2ClaimsSearch#entity-HandoverStatusOnPoint)
+            Известные значения: `pending`, `ready`, `initializing`, `initialized`,
+            `finishing`, `completed`, `skipped`.
         leave_under_door:
           type: boolean
           description: "Оставить посылку у двери"
@@ -2371,7 +2378,9 @@ components:
         limit:
           type: integer
           format: int64
-          description: "Максимальное число заявок в ответе"
+          description: |
+            Максимальное число заявок в ответе.
+            На проводе 2026-09-23: `0` легален — отвечает `200 {"claims":[]}` без `cursor`.
           minimum: 0
           maximum: 1000
           examples: [50]
@@ -2503,25 +2512,12 @@ components:
           pattern: '^[\x21-\x7E]+$'
           examples: ["ab10702030/?"]
         package_type:
-          $ref: '#/components/schemas/PackageType'
-
-    # Manually checked
-    PackageType:
-      type: string
-      description: |
-        Тип грузоместа:
-        - `package` — пакет
-        - `box` — коробка
-        - `bag` — мешок
-        - `pallet` — паллета
-        - `other` — тип по умолчанию
-      enum: ["package", "box", "bag", "pallet", "other"]
-      default: "other"
-
-    # Manually checked
-    HandoverStatusOnPoint:
-      type: string
-      description: |
-        Статус передачи груза роботом-доставщиком.
-        [HandoverStatusOnPoint](https://yandex.com/support/delivery-profile/ru/api/express/openapi/IntegrationV2ClaimsSearch#entity-HandoverStatusOnPoint)
-      enum: ["pending", "ready", "initializing", "initialized", "finishing", "completed", "skipped"]
+          # Намеренно string, а не замкнутый enum: поле описательное, ветвления по нему нет;
+          # новый тип грузоместа не должен ронять всю заявку (та же граница, что `new_currency`,
+          # `warnings[].source` — см. TD-19/TD-20). Известные значения перечислены в описании.
+          type: string
+          description: |
+            Тип грузоместа. Известные значения: `package` (пакет), `box` (коробка),
+            `bag` (мешок), `pallet` (паллета), `other` (по умолчанию).
+          default: "other"
+          examples: ["other"]

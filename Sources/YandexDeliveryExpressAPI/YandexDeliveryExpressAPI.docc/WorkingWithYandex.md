@@ -236,6 +236,26 @@ equally opaque; echo it back verbatim via the cursor variant. The claims themsel
 cleanly through `ClaimResponse` — every field the wire sent was either modelled or one of
 the extras in the table above.
 
+`limit` bounds are real on both operations: journal `limit=1001` is a 400
+(`"must be 1000 (limit) >= 1001 (value)"`), and search `{"limit": 0}` is legal — it
+answers `200 {"claims":[]}` with **no `cursor` key at all**, the one case where the
+optional cursor actually goes absent.
+
+### Unknown request fields are silently ignored — the dangerous behaviour
+
+Two probes for parameters that sibling operations document but these do not:
+
+- `claims/journal` body `{"claim_id": "00000000…"}` — returned the same four events as the
+  unfiltered call. The field is **ignored**, not honored and not rejected. It does not
+  filter; it merely does not error.
+- `claims/journal?cursor=…` — returned `200` with the *first* page (`operation_id` 84, 85),
+  not the continuation. Unknown query parameters are ignored the same way.
+
+This is worse than a 400: a caller who *believes* they filtered gets plausible, wrong data
+with no signal. Any parameter this package sends must therefore be one the reference
+documents or the wire was observed honoring — "it accepted the request" proves nothing on
+this API.
+
 ### `last_status_change_ts` starts at the epoch
 
 A claim whose status has never changed reports `1970-01-01T00:00:00+00:00` — the sentinel is
