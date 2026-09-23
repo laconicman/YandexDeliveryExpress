@@ -270,6 +270,77 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
 
+  /claims/journal:
+    post:
+      operationId: "getClaimsJournal"
+      summary: "Журнал изменений"
+      description: |
+        Метод возвращает историю изменения заявок: события смены статуса и цены по всем
+        заявкам аккаунта, постранично. Для терминальных статусов событие несёт поле `resolution`.
+        [claims/journal](https://yandex.com/support/delivery-profile/ru/api/express/openapi/IntegrationV2ClaimsJournal)
+      parameters:
+        - $ref: '#/components/parameters/JournalLimit'
+      requestBody:
+        # Сверено на проводе 2026-09-23: отсутствие тела, `{}` и `{"cursor": "…"}`
+        # принимаются одинаково — тело целиком опционально.
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ClaimsJournalRequest'
+      responses:
+        '200':
+          description: "Страница журнала изменений"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClaimsJournalResponse'
+        '400':
+          # На проводе 2026-09-23: невалидный курсор → {"code":"invalid_cursor",…},
+          # невалидный `limit` → {"code":"400",…} — числовой код из WorkingWithYandex.
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /claims/search:
+    post:
+      operationId: "searchClaims"
+      summary: "Поиск заявок"
+      description: |
+        Поиск заявок с учетом мультиточек. Заявки отсортированы по дате создания,
+        выдача сегментирована для пагинации: тело — либо фильтр, либо курсор продолжения.
+        На проводе 2026-09-23 тело, не подходящее ни под одну форму, отвечает
+        `400 {"code":"400","message":"Value of '/' cannot be parsed as a variant"}` —
+        вариант в буквальном смысле.
+        [claims/search](https://yandex.com/support/delivery-profile/ru/api/express/openapi/IntegrationV2ClaimsSearch)
+      parameters:
+        - $ref: '#/components/parameters/AcceptLanguage'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SearchClaimsRequest'
+      responses:
+        '200':
+          description: "Страница найденных заявок"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SearchClaimsResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
 components:
   securitySchemes:
     bearerAuth:
@@ -319,6 +390,20 @@ components:
         enum: ["ru", "en"]
         default: "ru"
         examples: ["ru", "en"]
+
+    # Manually checked
+    JournalLimit:
+      name: limit
+      in: query
+      required: false
+      description: |
+        Максимальное количество возвращаемых записей журнала.
+        [claims/journal](https://yandex.com/support/delivery-profile/ru/api/express/openapi/IntegrationV2ClaimsJournal)
+      schema:
+        type: integer
+        default: 1000
+        minimum: 1
+        maximum: 1000
 
   responses:
     BadRequest:
@@ -666,6 +751,17 @@ components:
             - `true` (курьер оставляет товар себе)
             - `false` (по умолчанию, требуется вернуть товар)
           default: false
+        packages:
+          type: array
+          description: "Список грузомест. В документации на сущности `V2ClaimInfo`, [Package](https://yandex.com/support/delivery-profile/ru/api/express/openapi/IntegrationV2ClaimsSearch#entity-Package)."
+          items:
+            $ref: '#/components/schemas/Package'
+          minItems: 1
+        performer_cancel_reasons:
+          type: array
+          description: "Причины, по которым курьер отменил доставку заказа. В документации на сущности `V2ClaimInfo`."
+          items:
+            type: string
         performer_info:
           $ref: '#/components/schemas/PerformerInfo'
           description: "В документации [CreatedPerformerInfo](https://yandex.com/support/delivery-profile/ru/api/express/openapi/IntegrationV2ClaimsCreate#createdperformerinfo)"
@@ -760,6 +856,15 @@ components:
           type: string
           description: Номер заказа из системы клиента. Передается для точки типа destination.
           examples: ["100"]
+        handover_status:
+          # Намеренно string, а не замкнутый enum: статус передачи роботом — описательная
+          # фаза прогресса; новая фаза не должна ронять заявку целиком (TD-19/TD-20).
+          type: string
+          description: |
+            Статус передачи груза роботом-доставщиком.
+            [HandoverStatusOnPoint](https://yandex.com/support/delivery-profile/ru/api/express/openapi/IntegrationV2ClaimsSearch#entity-HandoverStatusOnPoint)
+            Известные значения: `pending`, `ready`, `initializing`, `initialized`,
+            `finishing`, `completed`, `skipped`.
         leave_under_door:
           type: boolean
           description: "Оставить посылку у двери"
@@ -1547,6 +1652,13 @@ components:
           type: string
           description: "Наименование единицы товара"
           example: "Смартфон"
+        age_restricted:
+          type: boolean
+          description: |
+            Нужно ли проверить возраст клиента при выдаче товара.
+            Задокументировано на `V2CargoItem`; на проводе 2026-09-23 приходило
+            в ответах `claims/create` и `claims/search` — `ItemBase` уже несёт его.
+          default: false
         dropoff_point:
           type: integer
           format: int64
@@ -2121,3 +2233,299 @@ components:
             Этот механизм устарел и может быть ненадежен, рекомендуем использовать в связке с [claims/journal](https://yandex.com/support/delivery-profile/ru/api/express/openapi/IntegrationV2ClaimsJournal)
           pattern: '^https?:.*'
           examples: ["https://www.example.com/"]
+
+    # Правило этого документа для enum (TD-19/TD-20): enum — только там, где вызывающий
+    # обязан ветвиться по каждому значению (ClaimStatus, JournalChangeType,
+    # ClaimStatusResolution) — неизвестное значение роняет объект целиком при декодировании.
+    # Описательные поля ответа — string с перечнем значений в описании (new_currency,
+    # package_type, handover_status, warnings[].source). На стороне запроса enum безопасен:
+    # отправляемое выбираем мы сами (SearchClaimState). Генератор толерантных enum не даёт:
+    # единственный документированный приём — anyOf со строкой, чей value1/value2 убран в 0.2.0.
+
+    # Manually checked
+    ClaimsJournalRequest:
+      type: object
+      description: |
+        Тело [claims/journal](https://yandex.com/support/delivery-profile/ru/api/express/openapi/IntegrationV2ClaimsJournal).
+        Само тело опционально — на проводе 2026-09-23 принимаются отсутствие тела, `{}` и `{"cursor": "…"}`.
+      properties:
+        cursor:
+          type: string
+          description: |
+            Идентификатор последнего изменения, выданный предыдущим ответом.
+            Если не передан, будут выданы все изменения с лимитом `limit`.
+            Непрозрачный токен продолжения — на проводе JWT с `{version, last_known_id, holes}`,
+            но для клиента он opaque: возвращать как есть, не декодировать.
+          examples: ["eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzUxMiJ9.eyJ2ZXJzaW9uIjoxfQ…"]
+
+    # Manually checked
+    ClaimsJournalResponse:
+      type: object
+      description: "Страница [журнала изменений](https://yandex.com/support/delivery-profile/ru/api/express/openapi/IntegrationV2ClaimsJournal)."
+      required:
+        - cursor
+        - events
+      properties:
+        cursor:
+          type: string
+          description: |
+            Идентификатор последнего изменения — непрозрачный токен продолжения.
+            На проводе 2026-09-23 это JWT с `{version, last_known_id, holes}`; для клиента
+            он opaque — передавать обратно в `cursor` как есть, не декодировать.
+          examples: ["eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzUxMiJ9.eyJ2ZXJzaW9uIjoxfQ…"]
+        events:
+          type: array
+          description: "События изменения заявок, в документации `Event`"
+          items:
+            $ref: '#/components/schemas/JournalEvent'
+
+    # Manually checked
+    JournalEvent: # В документации `Event`
+      type: object
+      description: |
+        Информация об изменении заявки. [Event](https://yandex.com/support/delivery-profile/ru/api/express/openapi/IntegrationV2ClaimsJournal#entity-Event)
+        Сверено на проводе 2026-09-23: событие `status_changed` терминального статуса несёт
+        `resolution`; отменённая пользователем заявка приходит с `resolution: "failed"`.
+      required:
+        - change_type
+        - claim_id
+        - operation_id
+        - revision
+        - updated_ts
+      properties:
+        change_type:
+          $ref: '#/components/schemas/JournalChangeType'
+        claim_id:
+          type: string
+          description: "Идентификатор заявки"
+          minLength: 32
+          maxLength: 64
+          examples: ["3b8d1af142664fde824626a7c19e2bd9"]
+        operation_id:
+          type: integer
+          format: int64
+          description: "Идентификатор операции — позиция события в журнале"
+        revision:
+          type: integer
+          format: int64
+          description: "Версия изменения заявки"
+        updated_ts:
+          type: string
+          format: date-time
+          description: "Время события в формате ISO 8601"
+          examples: ["2020-01-01T00:00:00+00:00"]
+        client_id:
+          type: string
+          description: "Идентификатор клиента"
+          examples: ["95d010b2471041499b8cb1bfa282692f"]
+        current_point_id:
+          type: integer
+          format: int64
+          description: |
+            Целочисленный идентификатор точки (int64), генерируемый на стороне Яндекс Доставки.
+            Содержится в поле route_points[].id. Применимо к точкам с типом `source`, `destination`, `return`.
+          examples: [372036854775807]
+        new_currency:
+          # Намеренно string, а не $ref Currency: TD-20 пометил замкнутый Currency
+          # высокорискованным (BYN/KZT потерял бы ответ целиком), а журнал — канал
+          # синхронизации приложения: одно событие с неизвестной валютой остановило бы
+          # синк навсегда. Поле описательное (спутник `new_price`), по нему не ветвятся —
+          # граница TD-19: «enum, где вызывающий обязан ветвиться; string, где поле — проза».
+          type: string
+          description: "Код валюты заказа (ISO 4217). Наблюдено на проводе: `RUB`."
+          examples: ["RUB"]
+        new_price:
+          type: string
+          description: "Цена заказа"
+          pattern: '^-?[0-9]{1,14}(\.[0-9]{0,4})?$'
+          examples: ["20.00"]
+        new_status:
+          $ref: '#/components/schemas/ClaimStatus'
+        resolution:
+          $ref: '#/components/schemas/ClaimStatusResolution'
+
+    # Manually checked
+    JournalChangeType:
+      type: string
+      description: |
+        Тип изменения в событии журнала — дискриминатор того, какие поля события заполнены:
+        - `status_changed` — изменение статуса (несёт `new_status`, в терминале `resolution`);
+        - `price_changed` — изменение цены (несёт `new_price`, `new_currency`).
+        В документации два значения перечислены прозой в описании `Event.change_type`.
+      enum: ["status_changed", "price_changed"]
+
+    # Manually checked
+    ClaimStatusResolution:
+      type: string
+      description: |
+        Резолюция терминального статуса.
+        [ClaimStatusResolution](https://yandex.com/support/delivery-profile/ru/api/express/openapi/IntegrationV2ClaimsJournal#entity-ClaimStatusResolution)
+        Наблюдено на проводе 2026-09-23: отменённая пользователем заявка завершается
+        с `resolution: "failed"` — `success` здесь означает «доставлена», а не «действие выполнено».
+      enum: ["success", "failed"]
+
+    # Manually checked
+    SearchClaimsRequest:
+      description: |
+        Тело [claims/search](https://yandex.com/support/delivery-profile/ru/api/express/openapi/IntegrationV2ClaimsSearch) —
+        ровно одна из двух форм: фильтр `SearchClaimsRequestCorp` для новой выдачи
+        или `SearchClaimsRequestCursor` для продолжения предыдущей.
+        На проводе 2026-09-23 тело, не совпадающее ни с одной формой, отвечает
+        `400 {"code":"400","message":"Value of '/' cannot be parsed as a variant"}`.
+      oneOf:
+        - $ref: '#/components/schemas/SearchClaimsRequestCorp'
+        - $ref: '#/components/schemas/SearchClaimsRequestCursor'
+
+    # Manually checked
+    SearchClaimsRequestCorp: # Имя документации — «поиск заявок из корп кабинета»
+      type: object
+      description: "Фильтр поиска. [SearchClaimsRequestCorp](https://yandex.com/support/delivery-profile/ru/api/express/openapi/IntegrationV2ClaimsSearch#entity-SearchClaimsRequestCorp)"
+      required:
+        - limit
+      properties:
+        limit:
+          type: integer
+          format: int64
+          description: |
+            Максимальное число заявок в ответе.
+            На проводе 2026-09-23: `0` легален — отвечает `200 {"claims":[]}` без `cursor`.
+          minimum: 0
+          maximum: 1000
+          examples: [50]
+        claim_id:
+          type: string
+          description: "Идентификатор (ID) заявки, полученный на этапе создания заявки"
+          minLength: 32
+          maxLength: 64
+          examples: ["741cedf82cd464fa6fa16d87155c636"]
+        created_from:
+          type: string
+          format: date-time
+          description: "Начало периода поиска по дате создания заявки"
+          examples: ["2020-01-01T00:00:00+00:00"]
+        created_to:
+          type: string
+          format: date-time
+          description: "Окончание периода поиска по дате создания заявки"
+          examples: ["2020-01-02T00:00:00+00:00"]
+        due_from:
+          type: string
+          format: date-time
+          description: "Начало периода поиска по желаемому времени подачи"
+        due_to:
+          type: string
+          format: date-time
+          description: "Окончание периода поиска по желаемому времени подачи"
+        external_order_id:
+          type: string
+          description: "Идентификатор внешнего заказа, привязанного к точке"
+          examples: ["100"]
+        offset:
+          type: integer
+          format: int64
+          description: "Смещение (пагинация) выдачи заявок по заданному фильтру (заявки отсортированы по дате создания)"
+          default: 0
+          minimum: 0
+          examples: [50]
+        phone:
+          type: string
+          description: "Фильтр по номеру телефона"
+          examples: ["+79099999998"]
+        state:
+          $ref: '#/components/schemas/SearchClaimState'
+        status:
+          $ref: '#/components/schemas/ClaimStatus'
+
+    # Manually checked
+    SearchClaimsRequestCursor:
+      type: object
+      description: "Продолжение предыдущей выдачи. [SearchClaimsRequestCursor](https://yandex.com/support/delivery-profile/ru/api/express/openapi/IntegrationV2ClaimsSearch#entity-SearchClaimsRequestCursor)"
+      required:
+        - cursor
+      properties:
+        cursor:
+          type: string
+          description: "Непрозрачный курсор продолжения из предыдущего ответа — возвращать как есть, не декодировать."
+
+    # Manually checked
+    SearchClaimState:
+      type: string
+      description: |
+        Фильтр по состоянию заявки.
+        [SearchClaimState](https://yandex.com/support/delivery-profile/ru/api/express/openapi/IntegrationV2ClaimsSearch#entity-SearchClaimState)
+        Сверено на проводе 2026-09-23: `finished` возвращает завершённые и отменённые,
+        `active` — текущие; `delayed` не наблюден.
+      enum: ["active", "finished", "delayed"]
+
+    # Manually checked
+    SearchClaimsResponse:
+      type: object
+      description: "Страница результатов [claims/search](https://yandex.com/support/delivery-profile/ru/api/express/openapi/IntegrationV2ClaimsSearch)."
+      required:
+        - claims
+      properties:
+        claims:
+          type: array
+          description: |
+            Найденные заявки — полные карточки, тот же тип, что ответ `claims/info`:
+            в документации `V2ClaimInfo`, здесь переиспользован `ClaimResponse`.
+            Сверено на проводе 2026-09-23: ответ декодируется `ClaimResponse` целиком,
+            расхождения — только лишние поля (WorkingWithYandex → Undocumented fields).
+          items:
+            $ref: '#/components/schemas/ClaimResponse'
+        cursor:
+          type: string
+          description: |
+            Непрозрачный курсор продолжения — на проводе 2026-09-23 это base64-encoded JSON
+            с фильтром и позицией, но для клиента он opaque: возвращать в
+            `SearchClaimsRequestCursor.cursor` как есть, не декодировать.
+            В документации опционален; на проводе возвращался на каждой странице.
+
+    # Manually checked
+    Package:
+      type: object
+      description: |
+        Грузоместо — отдельная физическая единица обработки и перевозки.
+        Связано с соответствующими точками.
+        [Package](https://yandex.com/support/delivery-profile/ru/api/express/openapi/IntegrationV2ClaimsSearch#entity-Package)
+      required:
+        - dropoff_point
+        - package_id
+        - pickup_point
+      properties:
+        dropoff_point:
+          type: integer
+          format: int64
+          description: |
+            Идентификатор точки, куда нужно доставить товар (отличается от идентификатора в заявке).
+            Может быть любым числом. Должен соответствовать значению route_points[].point_id у точки назначения.
+        package_id:
+          type: string
+          format: uuid
+          description: "Уникальный в рамках заявки идентификатор грузоместа. Генерируется клиентом перед отправкой запроса."
+          examples: ["a8e5b0e6-3d67-4d6f-89a5-3b6c1a0e4f5c"]
+        pickup_point:
+          type: integer
+          format: int64
+          description: |
+            Идентификатор точки, откуда нужно забрать товар (отличается от идентификатора в заявке).
+            Может быть любым числом. Должен соответствовать значению route_points[].point_id у точки забора.
+        package_code:
+          type: string
+          description: |
+            Опциональный код/маркировка грузоместа. Только латиница, цифры и ASCII-спецсимволы;
+            кириллица, emoji и другие не-ASCII символы не допускаются. Может повторяться в пределах заявки.
+          minLength: 1
+          maxLength: 30
+          pattern: '^[\x21-\x7E]+$'
+          examples: ["ab10702030/?"]
+        package_type:
+          # Намеренно string, а не замкнутый enum: поле описательное, ветвления по нему нет;
+          # новый тип грузоместа не должен ронять всю заявку (та же граница, что `new_currency`,
+          # `warnings[].source` — см. TD-19/TD-20). Известные значения перечислены в описании.
+          type: string
+          description: |
+            Тип грузоместа. Известные значения: `package` (пакет), `box` (коробка),
+            `bag` (мешок), `pallet` (паллета), `other` (по умолчанию).
+          default: "other"
+          examples: ["other"]

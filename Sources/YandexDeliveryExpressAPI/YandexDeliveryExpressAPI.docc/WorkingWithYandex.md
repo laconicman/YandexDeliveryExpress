@@ -77,19 +77,25 @@ key is the one still standing.
 
 ### Undocumented response fields
 
-Present on the wire, absent from the reference and from `openapi.yaml`:
+Present on the wire, absent from the reference. The ones that proved useful have since been
+added to `openapi.yaml` — they are listed here anyway, because the reference still does not
+mention them and re-checking the reference will not explain them:
 
-| Field | Where |
-|---|---|
-| `last_status_change_ts` | `ClaimResponse` |
-| `skip_emergency_notify` | `ClaimResponse` |
-| `age_restricted` | `CargoItem` |
-| `droppof_point` | `CargoItem` (the typo above) |
-| `corp_client_id` | `ClaimResponse` — the account identifier; do not commit one |
+| Field | Where | In `openapi.yaml`? |
+|---|---|---|
+| `last_status_change_ts` | `ClaimResponse` — the epoch sentinel below | yes |
+| `skip_emergency_notify` | `ClaimResponse` | yes |
+| `age_restricted` | `CargoItem` — documented on `V2CargoItem`, added 2026-09-23 | yes |
+| `droppof_point` | `CargoItem` (the typo above) | no, deliberately |
+| `corp_client_id` | `ClaimResponse` — the account identifier; do not commit one | yes |
+| `taxi_offer` | `ClaimResponse` top level, duplicating `pricing.offer`; carries a **numeric** `price_raw` both places | no |
+| `route_points[].uuid` | `claims/create` response only — absent from later `info`/`search` reads | no |
+| `available_cancel_state` | `claims/create` response only (`"free"`); the cancel terms inline, undocumented | no |
+| `features` | `claims/create` response only, an empty array so far | no |
 
 Extra keys decode harmlessly — the generator ignores what the schema does not declare — so
-these cost nothing until someone needs one. Adding a field to `openapi.yaml` is how it becomes
-reachable.
+the unmodelled ones cost nothing until someone needs one. Adding a field to `openapi.yaml` is
+how it becomes reachable.
 
 ### Two error-code vocabularies
 
@@ -180,6 +186,81 @@ central-Moscow addresses a few hundred metres apart on the `courier` tariff reac
 worth remembering before concluding anything about the API from one failing sample.
 
 `auto_accept: true` skips approval entirely and goes straight to `performer_lookup`.
+
+## Observed 2026-09-23
+
+Verification run for `claims/journal` and `claims/search` (both confirmed POST, both live),
+on a test account, including one full create → cancel lifecycle. Nothing was ever accepted,
+so no courier moved.
+
+### The journal is a change feed with a signed cursor
+
+`POST /claims/journal` takes an optional `limit` query (default 1000, hard bounds 1–1000 —
+`limit=0` is a 400) and an **optional** body: `POST` with no body at all returns 200 with an
+empty page. The response is always `{cursor, events}` — both required.
+
+The `cursor` is a signed JWT whose payload carries pagination state
+(`{"version":1,"last_known_id":…,"holes":[…]}`). Do not parse it: feed it back verbatim in
+`{"cursor": "…"}` and the next page starts after `last_known_id`. A garbage cursor is a 400
+with `{"code":"invalid_cursor"}` — one of the only two codes the reference documents.
+
+Events observed during a create → cancel lifecycle, in order: `new`, `estimating`,
+`ready_for_approval`, `cancelled`. Each carries `change_type: "status_changed"`,
+`claim_id`, `operation_id`, `revision`, `updated_ts`; the cancellation's event additionally
+carried `resolution: "failed"` — **a user cancel counts as a *failed* resolution**, not
+`success`. `new_price`/`new_currency` accompany `change_type: "price_changed"`, which no
+test account of ours has yet emitted.
+
+### Search's body is genuinely a `oneOf` — the server says so
+
+`POST /claims/search` with a malformed body returns:
+
+```json
+{"code":"400","message":"Value of '/' cannot be parsed as a variant"}
+```
+
+The server parses the body as a variant — so `openapi.yaml` models it as a `oneOf` of a
+filter form (`limit` required, max 1000; `offset`, `claim_id`, `phone`, `status`,
+`created_from`/`created_to`, `due_from`/`due_to`, `state`, `external_order_id` optional) and
+a continuation form (`cursor` only). `limit: 2000` trips the same variant error rather than
+a range check — the server never gets as far as validating `limit`.
+
+Filters verified live: `state: "finished"` returned cancelled claims, `state: "active"`
+returned none after cancellation, `status: "cancelled"` and `claim_id` both filter as
+documented. `Accept-Language` is required (400 without it).
+
+The response is `{claims[], cursor?}`: `claims` is required, `cursor` optional in the
+reference but **returned on every page observed**, including single-result pages. It is
+base64-encoded JSON carrying pagination state (`{"offset":…,"limit":…,"created_to":…}`) —
+equally opaque; echo it back verbatim via the cursor variant. The claims themselves decode
+cleanly through `ClaimResponse` — every field the wire sent was either modelled or one of
+the extras in the table above.
+
+`limit` bounds are real on both operations: journal `limit=1001` is a 400
+(`"must be 1000 (limit) >= 1001 (value)"`), and search `{"limit": 0}` is legal — it
+answers `200 {"claims":[]}` with **no `cursor` key at all**, the one case where the
+optional cursor actually goes absent.
+
+### Unknown request fields are silently ignored — the dangerous behaviour
+
+Two probes for parameters that sibling operations document but these do not:
+
+- `claims/journal` body `{"claim_id": "00000000…"}` — returned the same four events as the
+  unfiltered call. The field is **ignored**, not honored and not rejected. It does not
+  filter; it merely does not error.
+- `claims/journal?cursor=…` — returned `200` with the *first* page (`operation_id` 84, 85),
+  not the continuation. Unknown query parameters are ignored the same way.
+
+This is worse than a 400: a caller who *believes* they filtered gets plausible, wrong data
+with no signal. Any parameter this package sends must therefore be one the reference
+documents or the wire was observed honoring — "it accepted the request" proves nothing on
+this API.
+
+### `last_status_change_ts` starts at the epoch
+
+A claim whose status has never changed reports `1970-01-01T00:00:00+00:00` — the sentinel is
+in the wild, not only in the reference's type list. It becomes a real timestamp after the
+first transition.
 
 ## How to add to this article
 

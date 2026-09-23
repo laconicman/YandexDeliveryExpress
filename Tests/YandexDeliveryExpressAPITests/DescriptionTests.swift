@@ -9,10 +9,11 @@ import Testing
 /// carries a time limit: if termination ever regresses, this reports rather than hangs.
 @Suite("Descriptions", .tags(.regression), .timeLimit(.minutes(1)))
 struct DescriptionTests {
-    /// The six operations, so `allCases` fails to compile rather than quietly under-covering
-    /// when a seventh is added to `openapi.yaml`.
+    /// The eight operations, so `allCases` fails to compile rather than quietly under-covering
+    /// when a ninth is added to `openapi.yaml`.
     enum OperationUnderTest: String, CaseIterable, Sendable {
         case calculateOffers, createClaim, getClaimInfo, acceptClaim, getClaimCancelInfo, cancelClaim
+        case getClaimsJournal, searchClaims
     }
 
     @Test("Every operation output's description terminates", arguments: OperationUnderTest.allCases)
@@ -105,6 +106,17 @@ struct DescriptionTests {
                     query: .init(claimId: claimId),
                     headers: .init(acceptLanguage: .ru),
                     body: .json(.init(version: 1, cancelState: .free))
+                )
+                .description
+        case .getClaimsJournal:
+            try await Client.stubbed(json: Fixture.claimsJournalResponseJSON)
+                .getClaimsJournal()
+                .description
+        case .searchClaims:
+            try await Client.stubbed(json: Fixture.searchClaimsResponseJSON)
+                .searchClaims(
+                    headers: .init(acceptLanguage: .ru),
+                    body: .json(.SearchClaimsRequestCorp(.init(limit: 50)))
                 )
                 .description
         }

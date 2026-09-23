@@ -541,7 +541,6 @@ trusts either number can offer a sender a pickup time the provider will refuse.
 - **Consumer note:** YDelivery has narrowed its picker to the documented bounds in the
   meantime, deliberately choosing the stricter of the two readings.
 
-<<<<<<< HEAD
 ## TD-22 — `cancel-info` prices read as the fee, are documented as delivery cost
 
 Found building YDelivery's cancel surface (2026-09-22), checked against the
@@ -554,19 +553,23 @@ cost — yet they arrive on a response whose only other payload is `cancel_state
 reference's own example answers `"cancel_state": "free"` *with* `"price": "12.50"`, which
 suggests the field may describe the run rather than the charge; whether a paid
 cancellation bills the delivery price or a separate fee, the document does not say.
-The sibling page's `claims/cancel` example returns `"status": "new"` on a cancelled
-claim — plausibly a stale example, plausibly a pre-transition echo. The package's
-decode fixture answers `"cancelled"`, but that fixture is schema-derived like this
-document, not a captured wire response — it cannot say which reading is true.
 
-- **What would discharge it:** one live cancellation watched end to end — `cancel-info`
-  while the search runs and again after courier arrival, then `cancel` with the
-  advertised version — recording which field carries the fee and which status the 200
-  actually returns. Until then the wire shapes here are the document's best reading,
-  not measurements.
+**Half-discharged 2026-09-23** (live, test account): the sibling page's `claims/cancel`
+example returning `"status": "new"` on a cancelled claim is a stale example — the wire
+returned `200 {"status": "cancelled", "version": 2}` on a free cancellation, and the
+journal's terminal event carried `resolution: "failed"` (a user cancel counts as failed).
+The price question stays open: that cancellation was `free`, so which field bills a *paid*
+cancel is still unmeasured.
+
+- **What would discharge it:** one *paid* cancellation watched end to end — `cancel-info`
+  after courier arrival, then `cancel` with the advertised version — recording which field
+  carries the fee. Test-account claims cancel free before courier arrival, so this waits
+  on a lifecycle that gets that far, or a production account.
 - **Consumer note:** YDelivery quotes `price_with_vat` falling back to `price`, worded
   as what cancelling costs — the same with-VAT rule its offers mapping already follows —
-  and re-reads the claim after a 200 rather than trusting the response's `status`.
+  and re-reads the claim after a 200 rather than trusting the response's `status`. The
+  re-read remains correct practice: it settles the claim's true state regardless of what
+  the cancel body claims.
 
 ## TD-23 — Consumer middleware sees the bearer token — **accepted**
 

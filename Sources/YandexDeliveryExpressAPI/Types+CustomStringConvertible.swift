@@ -141,6 +141,36 @@ extension Operations.CancelClaim.Output: CustomStringConvertible {
     }
 }
 
+// MARK: - Operations.GetClaimsJournal.Output + CustomStringConvertible
+
+extension Operations.GetClaimsJournal.Output: CustomStringConvertible {
+    public var description: String {
+        switch self {
+        case .ok(let response): (try? response.body.json)?.prettyJSON ?? undecodedJSON
+        case .badRequest(let error): message(of: try? error.body.json)
+        case .unauthorized(let error): message(of: try? error.body.json)
+        case .tooManyRequests(let error): message(of: try? error.body.json)
+        case .internalServerError(let error): message(of: try? error.body.json)
+        case .undocumented(let statusCode, let payload): undocumentedDescription(statusCode: statusCode, payload: payload)
+        }
+    }
+}
+
+// MARK: - Operations.SearchClaims.Output + CustomStringConvertible
+
+extension Operations.SearchClaims.Output: CustomStringConvertible {
+    public var description: String {
+        switch self {
+        case .ok(let response): (try? response.body.json)?.prettyJSON ?? undecodedJSON
+        case .badRequest(let error): message(of: try? error.body.json)
+        case .unauthorized(let error): message(of: try? error.body.json)
+        case .tooManyRequests(let error): message(of: try? error.body.json)
+        case .internalServerError(let error): message(of: try? error.body.json)
+        case .undocumented(let statusCode, let payload): undocumentedDescription(statusCode: statusCode, payload: payload)
+        }
+    }
+}
+
 // MARK: - Components.Parameters.AcceptLanguage + CustomStringConvertible
 
 extension Components.Parameters.AcceptLanguage: CustomStringConvertible {

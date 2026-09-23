@@ -135,6 +135,59 @@ struct LiveExplorationTests {
         }
     }
 
+    @Test("What do claims/journal and claims/search actually send back?")
+    func exploreJournalAndSearch() async throws {
+        // The two operations added for the claims list, probed the way every other
+        // operation was. Read-only: journal replays what already happened, and search
+        // only reads. The interesting output is the undocumented-field diff — the wire
+        // has already produced `taxi_offer`, `route_points[].uuid`, `features` and
+        // `available_cancel_state`, none of which the reference mentions.
+        let log = WireLog()
+        let client = try Client.capturing(log, credentials: #require(Credentials.environment))
+
+        let journal = try await client.getClaimsJournal(query: .init(limit: 100))
+        if let page = try? journal.ok.body.json {
+            let raw = await log.exchanges.last?.responseBody
+            if let raw {
+                let unknown = WireDrift.undocumented(in: raw, understoodAs: page)
+                if !unknown.isEmpty {
+                    Issue.record(
+                        "claims/journal sends field(s) openapi.yaml does not model: \(unknown.joined(separator: ", "))",
+                        severity: .warning
+                    )
+                }
+            }
+            // A page is evidence even when empty; a populated one also shows event shapes.
+            if page.events.isEmpty {
+                Issue.record("claims/journal returned an empty page — event shapes stay doc-derived.", severity: .warning)
+            }
+        }
+
+        let search = try await client.searchClaims(
+            headers: .init(acceptLanguage: .ru),
+            body: .json(.SearchClaimsRequestCorp(.init(limit: 5)))
+        )
+        if let page = try? search.ok.body.json {
+            let raw = await log.exchanges.last?.responseBody
+            if let raw {
+                let unknown = WireDrift.undocumented(in: raw, understoodAs: page)
+                if !unknown.isEmpty {
+                    Attachment.record(unknown.joined(separator: "\n"), named: "claims-search-undocumented-fields.txt")
+                    Issue.record(
+                        "claims/search sends \(unknown.count) field(s) openapi.yaml does not model: \(unknown.joined(separator: ", "))",
+                        severity: .warning
+                    )
+                }
+            }
+        }
+
+        Attachment.record(await log.transcript(), named: "journal-and-search.txt")
+
+        // The assertions are only that the client works at all on the real wire.
+        #expect((try? journal.ok.body.json.events) != nil)
+        #expect((try? search.ok.body.json.claims) != nil)
+    }
+
     @Test("Is the error `code` field a vocabulary or a status code?")
     func exploreErrorCodeVocabulary() async throws {
         // Observed: symbolic codes (`not_found`, `state_mismatch`, `estimating.too_many_loaders`)
