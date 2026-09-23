@@ -30,6 +30,16 @@ decided, they stay closed, and the vanilla generator output is the surface.
 
 ## Now
 
+### Claims `journal` and `search` — the `0.3.0` milestone (author's call, 2026-09-23)
+
+YDelivery's Phase 3 needs a claims list: a cancellable claim is only cancellable if the
+user can find it, and the app's minimal list loses orders. The journal carries **no
+coordinates** — status/price events plus `current_point_id` — enough for stop-granularity
+progress. Spec + tests, tagged `0.3.0`; the app's store already keys orders by `claimID`,
+so the join key is settled. Verify the op set against the provider docs before writing
+YAML (`claims/journal`, `claims/search` if it exists); rule 11 applies — replicate wire
+shapes, change only on live evidence.
+
 ### Add CI
 
 `swift build` and `swift test --skip "Live API"` on push. With the build plugin there is no
