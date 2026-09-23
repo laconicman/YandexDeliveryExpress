@@ -1,99 +1,49 @@
 # Code-session handoff — YandexDeliveryExpressAPI
 
-Rewritten 2026-08-10, after the restoration described below. Delete this file once the "Now"
-section of `Sources/YandexDeliveryExpressAPI/YandexDeliveryExpressAPI.docc/Roadmap.md` is
-done — the DocC catalog is authoritative from that point on, and a stale handoff is worse
-than none.
+Rewritten 2026-09-23 for the journal milestone. Delete this file once `journal`/`search`
+ship and the DocC `Roadmap.md` "Now" section reflects them — a stale handoff is worse than
+none.
 
 **Read first:** `Design.md`, `SpecOwnership.md`, `TechDebt.md`, `Roadmap.md` in
 `Sources/YandexDeliveryExpressAPI/YandexDeliveryExpressAPI.docc/`. This file is the *task
-list*; those are the *reasons*. Where they disagree, believe the catalog.
+list*; the catalog holds the *reasons*. Where they disagree, believe the catalog.
 
-## Decisions already made — do not relitigate
+## State
 
-| Decision | Value | Where the reasoning lives |
-|---|---|---|
-| Platform floor | iOS 17 / macOS 14 / tvOS 17 / watchOS 10 / visionOS 1 | `Design.md` |
-| Code generation | Build plugin; nothing generated is committed | `Design.md` |
-| Modules | One (`YandexDeliveryExpressAPI`) | `Design.md` |
-| Spec | Hand-authored and owned; fix defects in the YAML, not in Swift | `SpecOwnership.md` |
-| Sample app | Separate repo (`YandexDeliveryExpressDemo`), consumes this package | `YandexDeliveryExpressDemo/HANDOFF.md` |
+`0.2.1` is tagged on `main`: create/accept/cancel-info/cancel ops, `Client.init(…,
+middlewares:)` composing the post-auth chain (TD-23 registers that consumer middleware
+sees the bearer token), `bodyLoggingConfiguration:` kept as a forwarder. The app consumes
+by URL. TD-22 (live evidence for cancellation semantics) stays open until a real cancel
+run — the app's wire log (YD-12) is the intended capture.
 
-## State: the package builds, and is tested
+## Milestone: `journal` (and `search`) → tag `0.3.0`
 
-The four independent reasons it did not compile — TD-1 through TD-4 — are discharged, along
-with TD-7 and TD-8. `swift build` succeeds from a clean checkout with no `path:` argument;
-`swift test --skip "Live API"` runs thirty-nine tests with no network and no credentials;
-`swift package generate-documentation --target YandexDeliveryExpressAPI` renders all five
-articles with no unresolved links.
+The app's Phase 3 needs a claims list: a cancellable claim is only cancellable if the user
+can find it, and today's minimal deliveries list loses orders. Demand recorded on the
+package Roadmap since 2026-09-02 beside `tariffs`. The journal carries **no coordinates** —
+status/price events plus `current_point_id`, verified 2026-08-30 — which is enough for
+stop-granularity progress on the app's surfaces.
 
-Five defects were found while fixing those four, none of them in the original diagnosis:
+1. Spec: add `journal` (and `search` if the API exposes it — verify against the provider
+   docs before writing the YAML) to `openapi.yaml`. `operationId` naming per
+   `SpecOwnership`; rule 11 applies — replicate wire shapes the provider actually emits,
+   change only on live evidence.
+2. Tests per package conventions (`swift test`); the app's store already keys recorded
+   orders by `claimID`, so the join key is settled.
+3. Merge, tag `0.3.0`. The app side (separate repo, separate PRs): journal-driven claims
+   list → the `3e` history card → cancellation reachable; map point annotations as a
+   parallel or following slice.
 
-1. `FlexibleISO8601Transcoder.modernFormatter` matched nothing —
-   `Date.ISO8601FormatStyle().time(includingFractionalSeconds: true)` **selects** the time
-   fields rather than adding to them, so it parsed `08:32:14.822` with no date part.
-2. `encode(_:)` truncated sub-second precision on every write.
-3. `bodyLoggingConfiguration` was accepted and ignored, logging names, phones, addresses and
-   door codes regardless of what the caller asked for.
-4. `String.double` returned `0.0` for anything unreadable — and, worse, the underlying
-   format style is *lenient*: `Double("807,6", format:)` returns `807` rather than failing.
-5. `GetClaimCancelInfo.Output` had no `CustomStringConvertible` conformance at all, so one of
-   the six operations could not go through the documented logging path.
+## Working agreements for the session
 
-Each is one commit, in order, on top of a skeleton commit and a pure-rename commit.
-
-## What is left
-
-In `Roadmap.md` order.
-
-**Settled since this file was last written**, all with live evidence:
-
-- **TD-12** — sample addresses are fictional; the data left the shipping target. The demo app
-  now declares its own in `Models/SampleData.swift` and **builds again**. Placement checked
-  against Manferdini's course rather than guessed — see TD-12.
-- **TD-15** — both request-shape changes confirmed against the real API.
-- **TD-16** — timestamp formats vary *within one response*, measured: 21 fractional, 4 plain.
-- **TD-17** — an undocumented 409 found and fixed in `openapi.yaml`.
-- **TD-18** — the express sample was invalid and always had been.
-- **TD-11** — the blocker moved from "no test account" to "no estimable request".
-
-The credential is a **test** token. Read <doc:WorkingWithYandex> before trusting any of it
-against production; that article is the standing record of observed behaviour, and
-`LiveExplorationTests` is the instrument that writes it.
-
-### 1. CI
-
-`swift build` and `swift test --skip "Live API"` on push. Use
-`--build-system swiftbuild` so the String Catalog is compiled and the localization
-regression test runs instead of self-skipping (TD-10). With the build plugin there is no
-drift check to write.
-
-### 2. Publish
-
-Tag `0.1.0`, push, submit to the Swift Package Index. Then repoint the demo app from
-`.package(path:)` to the URL — see its own `HANDOFF.md`, and note that the app must commit
-its `Package.resolved` while this package must not.
-
-### 3. Everything else
-
-`Roadmap.md` → Next and Later, and the open register: TD-5 (`value1`/`value2`), TD-9 (spec
-drafts in the sample-app repo), TD-10 (SwiftPM and `.xcstrings`), TD-11 (`acceptClaim` still
-unreached — needs an estimable request, not an account), TD-13, TD-14 (one log path ignores
-the body policy), TD-16 (per-value timestamp formats) (`newRoutePoint` is view-model logic).
-
-## Things a future session should not re-derive
-
-- **`swift build` will not compile `Resources/Localizable.xcstrings`.** Only Swift Build
-  does. This is TD-10, and it is why one test is gated rather than unconditional.
-- **A `Regex` cannot be a global constant** in Swift 6 language mode — it is not `Sendable`.
-  `DecimalStrings.swift` spells out the document's pattern by hand for that reason.
-- **A trait on `@Suite` cannot reference a static member of the type it is attached to**
-  ("circular reference resolving attached macro"). `LiveMutatingTests` puts its gate in a
-  file-scope constant.
-- **`xcodebuild` needs `-skipPackagePluginValidation`.** Otherwise the generator plugin's
-  trust check fails the build with "Validate plug-in 'OpenAPIGenerator'" and no useful
-  message — it is Xcode waiting for a click that never comes. `swift build` is unaffected.
-- **The offline fixtures are derived from `openapi.yaml`, not captured.** The repository's
-  only live-traffic record, the sample app's Postman collection, stores requests and no
-  responses. This is the sharp edge of TD-6, and giving every schema a provenance comment
-  (`Roadmap.md` → Next) is what would blunt it.
+- **DeepWiki prospectively** (golden rule): paste the planned spec/API shape and ask for
+  objections *before* committing — it can't see unmerged code, so describe the diff
+  against what it has indexed. Relay the index commit the answer is pinned at.
+- **Wait for Devin Review to finish a round** before pushing fixes; every push triggers a
+  fresh pass that often critiques the fix just made (author, 2026-09-22).
+- **`contrib` is the obligations ledger**: `contrib in … --json` carries full bodies
+  (`text.ask`/`text.reply`) — no `gh api --jq` needed; refresh `in` before `ack` since
+  acks fail on stale snapshots; edits can reopen items or rewrite a finding wholesale.
+- **Co-think pace** (author, 2026-09-23): ask where a decision is genuinely ambiguous or
+  consequential; don't churn. Musk's algorithm applies — question, delete, simplify —
+  before adding mechanism.
