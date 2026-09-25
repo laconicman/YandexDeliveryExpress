@@ -587,6 +587,21 @@ writes the long-lived OAuth token wherever it writes.
   discipline; if a sink ever needs headers, an internal scrub-and-restore shim belongs
   in this init. Revisit if a capture is ever shared beyond its collecting user.
 
+## TD-24 — The transport was not configurable — **discharged**
+
+`Client.init(…, middlewares:)` hardcoded `URLSessionTransport()`, so no consumer could
+tighten the default 60-second `URLSession` request timeout. That became debt the day a
+consumer field check (YDelivery's YD-14, 2026-09-23) showed the provider's failure mode
+under burst load is a silent stall — no status, no `Retry-After`, connections held open
+25+ minutes — which makes the transport's timeout the whole budget a stalled request
+spends.
+
+- **Discharged by:** the `transport:` parameter on the same init — the compose-the-rest
+  philosophy the `middlewares:` slot already carries — so a consumer injects
+  `URLSessionTransport(configuration:)` on a `URLSession` of its choosing. The default
+  stays `URLSessionTransport()`: the stall was observed from one account under burst,
+  not proven to be policy, so tightening is a consumer's call.
+
 ## See Also
 
 - <doc:SpecOwnership>
