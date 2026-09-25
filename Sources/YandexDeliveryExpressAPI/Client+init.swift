@@ -34,15 +34,21 @@ public extension Client {
     ///     the unified log, a wire-capture sink for TD-22's evidence, whatever the caller
     ///     composes. Each entry receives the *authorized* request, `Authorization`
     ///     header included; a sink must not persist headers (TD-23).
+    ///   - transport: Defaults to `URLSessionTransport()` — a `URLSession` with the
+    ///     platform's 60-second request timeout. A consumer that has seen the provider
+    ///     black-hole connections under load should inject
+    ///     `URLSessionTransport(configuration:)` on a session with a tighter
+    ///     `timeoutIntervalForRequest`.
     init(
         serverURL: URL? = nil,
         credentials: Credentials,
-        middlewares: [any ClientMiddleware]
+        middlewares: [any ClientMiddleware],
+        transport: any ClientTransport = URLSessionTransport()
     ) throws {
         self = Client(
             serverURL: try serverURL ?? Servers.Server1.url(),
             configuration: Configuration(dateTranscoder: FlexibleISO8601Transcoder()),
-            transport: URLSessionTransport(),
+            transport: transport,
             middlewares: [
                 AuthMiddleware(authorizationHeaderFieldValue: "Bearer \(credentials.authToken)")
             ] + middlewares

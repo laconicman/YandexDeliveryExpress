@@ -91,4 +91,24 @@ struct AuthMiddlewareTests {
         let offers = try #require(try? response.ok.body.json.offers)
         #expect(offers.count == 2)
     }
+
+    @Test("The convenience init's transport parameter reaches the wire")
+    func transportParameterReachesTheWire() async throws {
+        // The convenience init is the production path; a consumer injecting a transport
+        // there (a tighter-timeout `URLSessionTransport`, say) relies on it not being
+        // silently replaced by the default. The authorized request landing on the
+        // recorder proves the whole composition — transport plus the auth middleware
+        // the init prepends.
+        let recorder = RequestRecorder()
+        let client = try Client(
+            credentials: .init(authToken: "s3cret"),
+            middlewares: [],
+            transport: RecordingTransport(recorder: recorder)
+        )
+
+        _ = try await client.calculateOffers(.sample)
+
+        let request = try #require(await recorder.request)
+        #expect(request.headerFields[.authorization] == "Bearer s3cret")
+    }
 }
