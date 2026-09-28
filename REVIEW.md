@@ -32,6 +32,10 @@ this file — nothing here restates it. These are the diff-level cues and the no
   require `YDE_ALLOW_MUTATING_LIVE_TESTS=1` as a second gate if it creates or mutates a claim.
 - Flag a new closed `enum` on a response-side field whose content is advisory or descriptive
   prose — TD-19's boundary: enum where callers must branch, string where the field is prose.
+- Flag `.defaultIsolation(MainActor.self)` on the library target as a regression — generated
+  code cannot compile under it (apple/swift-openapi-generator#796/#823); `Design` →
+  Concurrency records the settlement. The inverse rule of a UI package: flag `nonisolated`
+  markers in `Sources/` too — they are no-ops under the explicit `nil` default.
 
 ## Anti-patterns to Flag
 

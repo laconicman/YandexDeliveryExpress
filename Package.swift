@@ -1,4 +1,4 @@
-// swift-tools-version: 6.1
+// swift-tools-version: 6.2
 
 import PackageDescription
 
@@ -29,6 +29,15 @@ let package = Package(
                 .product(name: "OSLogLoggingMiddleware", package: "OSLogLoggingMiddleware")
             ],
             resources: [.process("Resources/Localizable.xcstrings")],
+            // `.defaultIsolation(nil)` spells the policy explicitly: nonisolated
+            // module default. `.defaultIsolation(MainActor.self)` (the app dialect)
+            // would actor-isolate the *generated* client's conformances and
+            // @Sendable closures into uncompilability — upstream
+            // apple/swift-openapi-generator#796/#823, whose sanctioned workaround
+            // is exactly this setting. `SimKDSKit` carries the same default;
+            // `Design` → Concurrency records the reasoning, REVIEW.md flags
+            // re-adding it.
+            swiftSettings: [.defaultIsolation(nil)],
             // The generator is a *plugin*, never a `dependencies:` entry. It finds
             // `openapi.yaml` and `openapi-generator-config.yaml` by scanning the target's
             // files, so those two must stay in the target's sources — not excluded, and not

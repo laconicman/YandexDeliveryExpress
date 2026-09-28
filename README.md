@@ -34,7 +34,7 @@ README disagree, believe the catalog. Build it with
 .package(url: "https://github.com/laconicman/YandexDeliveryExpress", from: "0.1.0")
 ```
 
-Requires Swift 6.1 or newer, and iOS 17 / macOS 14 / tvOS 17 / watchOS 10 / visionOS 1.
+Requires Swift 6.2 or newer, and iOS 17 / macOS 14 / tvOS 17 / watchOS 10 / visionOS 1.
 
 > **If you build with SwiftPM directly, the package's user-facing strings are English only.**
 > SwiftPM's native build system copies `Localizable.xcstrings` into the resource bundle without

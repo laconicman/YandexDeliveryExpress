@@ -73,6 +73,39 @@ generated namespace re-exported.
 to keep a 65k-line generated module out of the incremental loop. This module is a
 twentieth of that. Revisit only with a measurement — see <doc:Roadmap>.
 
+## Concurrency: the package is nonisolated by default
+
+`Package.swift` spells it — `.defaultIsolation(nil)`. Two reasons, either of which would
+suffice:
+
+1. **Generated code cannot live under `-default-isolation MainActor`.** The emitted
+   `Decodable`/`CaseIterable`/`Sendable` conformances and `@Sendable` closures become
+   MainActor-isolated and fail their protocol requirements — upstream
+   `apple/swift-openapi-generator` issues
+   [#796](https://github.com/apple/swift-openapi-generator/issues/796) and
+   [#823](https://github.com/apple/swift-openapi-generator/issues/823), whose
+   maintainer-sanctioned workaround is exactly "turn that off in that module." Rule 2
+   (CLAUDE.md) bans editing generated code, so the target setting is the only knob.
+2. **A data-layer library must not impose an executor on its callers.** The
+   approachable-concurrency dialect (MainActor default) is for app targets, whose code
+   mostly touches views. Calls into this package — request building, decoding, validation —
+   are pure work that should run on the caller's context; making them hop to main and back
+   would be contention bought for nothing.
+
+The safety model does not come from the flag anyway: the package is stateless.
+`Credentials` is a `Sendable` value, `AuthMiddleware` a stateless `package` struct, the
+transcoder and validators are functions. The generated `Client` holds no mutable state a
+caller could collide on — each call is an independent request/response pair. If a stateful
+client-level concern ever appears (token refresh, circuit breaking), *that* state gets its
+own actor, not the whole client.
+
+Corollaries: `nonisolated` markers on declarations are no-ops here — do not write them.
+App targets (`YDelivery`, the demo) carry the opposite dialect — MainActor default plus
+the SE-0461/0470 upcoming features — and that is where the `nonisolated`-on-value-types
+rule applies, not here. If a UI-adjacent target is ever added to this package, it gets
+MainActor default and the generated code moves to a dedicated nonisolated target — the
+upstream-endorsed layout (`SimKDSKit` records the same settlement).
+
 ## The platform floor is iOS 17 / macOS 14
 
 Raised from iOS 14 / macOS 11. The old floor was aspirational: nothing in the package was
