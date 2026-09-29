@@ -1,0 +1,26 @@
+# Upstream pages this package's `openapi.yaml` depends on (issue #17).
+#
+# One page per line: `<file-stem> <url>`. The stem names the cached file,
+# `Upstream/yandex-docs/<file-stem>.md`, and is normally the URL's last path segment.
+# `scripts/upstream-diff.sh` reads this list; lines starting with `#` are ignored.
+
+# Journal: carries no coordinates, only status/price events (YDelivery `Vision.md`).
+IntegrationV2ClaimsJournal   https://yandex.ru/support/delivery-profile/ru/api/express/openapi/IntegrationV2ClaimsJournal
+
+# The operations `openapi.yaml` models, in the order the Roadmap added them.
+IntegrationV2OfferCalculate  https://yandex.ru/support/delivery-profile/ru/api/express/openapi/IntegrationV2OfferCalculate
+IntegrationV2ClaimsCreate    https://yandex.ru/support/delivery-profile/ru/api/express/openapi/IntegrationV2ClaimsCreate
+IntegrationV2ClaimsInfo      https://yandex.ru/support/delivery-profile/ru/api/express/openapi/IntegrationV2ClaimsInfo
+IntegrationV2ClaimsAccept    https://yandex.ru/support/delivery-profile/ru/api/express/openapi/IntegrationV2ClaimsAccept
+IntegrationV2ClaimsCancelInfo https://yandex.ru/support/delivery-profile/ru/api/express/openapi/IntegrationV2ClaimsCancelInfo
+IntegrationV2ClaimsCancel    https://yandex.ru/support/delivery-profile/ru/api/express/openapi/IntegrationV2ClaimsCancel
+IntegrationV2ClaimsSearch    https://yandex.ru/support/delivery-profile/ru/api/express/openapi/IntegrationV2ClaimsSearch
+
+# Claim lifecycle and status vocabulary, the source of the app's `OrderStatus(claimStatus:)`
+# mapping. This is the page the docs already cite. Confirm it on the first capture: if the
+# status table lives on a separate page, add that page here.
+claim-process                https://yandex.ru/support/delivery-profile/ru/api/express/claim-process
+
+# Business-cabinet integration page: token location, coordinates-only addressing,
+# no test environment, `callback_url` wording.
+dostavka-integrations-api    https://dostavka.yandex.ru/integrations/api/
