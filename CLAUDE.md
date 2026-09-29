@@ -15,6 +15,7 @@ and this file disagree, believe them.
 | [Owning the Specification](Sources/YandexDeliveryExpressAPI/YandexDeliveryExpressAPI.docc/SpecOwnership.md) | Why `openapi.yaml` is hand-written, and what that obligates |
 | [Tech Debt](Sources/YandexDeliveryExpressAPI/YandexDeliveryExpressAPI.docc/TechDebt.md) | Numbered register (`TD-n`), each with Cost and Discharge |
 | [Roadmap](Sources/YandexDeliveryExpressAPI/YandexDeliveryExpressAPI.docc/Roadmap.md) | Planned work, priority order |
+| [Upstream docs cache](Upstream/yandex-docs/README.md) | What Yandex's unversioned pages say today; `scripts/upstream-diff.sh` re-checks |
 
 `HANDOFF.md` is the current task list; `Test-Plan.md` is the suite to build. Both are
 temporary and get deleted once consumed.

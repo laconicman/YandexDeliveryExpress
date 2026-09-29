@@ -28,6 +28,23 @@ are the price of the whole approach:
    what we *say* the API returns; only the live suite proves we said the right thing. This
    inverts the usual priority — see <doc:TechDebt> item 6.
 
+## The upstream pages are cached, because Yandex does not version them
+
+Both obligations above assume you can see what Yandex currently says. You cannot count on
+that: the reference and the business-cabinet page change without a changelog, and they answer
+only a real browser, not a plain fetch. `Upstream/yandex-docs/` holds a Markdown capture of
+every page this document cites, each with its source URL, capture date and a SHA-256 of the
+body. `scripts/upstream-diff.sh` re-captures the pages and prints a diff when a page changed
+(issue #17). Re-read the cached page before a provenance comment cites it. Re-run the check
+before tagging a release. It is the cheap sibling of settling a question by a live call
+(TD-15), and it cannot replace one: the page says what Yandex *claims*, and the wire says
+what it *does*.
+
+The first capture (2026-09-29) found that most `#anchor` links in this document and in the
+articles no longer resolve. The pages now use `#entity-PascalCase` ids (`#cargopointaddress`
+is now `#entity-CargoPointAddress`), so those links open the right page but not the right
+section.
+
 ## Naming: shape the document, not the generated code
 
 `openapi-generator-config.yaml` uses `namingStrategy: idiomatic`, which produces clean Swift
