@@ -262,6 +262,32 @@ A claim whose status has never changed reports `1970-01-01T00:00:00+00:00` — t
 in the wild, not only in the reference's type list. It becomes a real timestamp after the
 first transition.
 
+## Observed 2026-09-29
+
+### `coordinates` are optional on `claims/create` — and the server geocodes `fullname` when they are absent
+
+The cached upstream pages disagree (`Upstream/yandex-docs`, captured 2026-09-29): the
+business page says addresses are accepted «только в формате координат», while the
+reference leaves `CargoPointAddress.coordinates` optional. Three `claims/create` calls on
+the test account settled it, each cancelled on the first attempt:
+
+| `address` sent | HTTP | `route_points[].address.coordinates` in the response |
+|---|---|---|
+| `{"coordinates": [37.6208, 55.7539], "fullname": "Москва, Красная площадь, 1"}` | 200 | `[37.6208, 55.7539]` — echoed as sent, not re-geocoded |
+| `{"coordinates": null, "fullname": …}` | 200 | `[37.617680157885104, 55.75527679070712]` — geocoded from `fullname` |
+| `{"fullname": …}` (key omitted) | 200 | identical to the `null` case |
+
+So `null` and *absent* are the same to the server, `openapi.yaml`'s optionality is right, and
+the warning on the business page is about **which pin wins**: sent coordinates are taken
+verbatim; absent ones are the geocoder's guess — here ~200 m off the sender's pin on
+Красная площадь. A client that has a pin should always send it. The consuming app does
+(`RoutePoint.latitude`/`longitude` are non-optional), and a claim it reads back will always
+carry coordinates, whichever side supplied them.
+
+No spec change. Probe: three `curl` calls with `request_id=probe-<uuid>`, `claims/info`, then
+`claims/cancel` with the reported `version` and `cancel_state: "free"` — all three `cancelled`
+on attempt 1.
+
 ## How to add to this article
 
 One live call is worth more than an afternoon of reading the reference, and cheaper than a
