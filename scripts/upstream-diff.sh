@@ -40,8 +40,10 @@ trap 'rm -rf "$fresh"' EXIT
 capture_status=0
 node "$tool/capture.mjs" --pages "$cache/pages.txt" --out "$fresh" "$@" >/dev/null || capture_status=$?
 
-# The body is everything after the closing `---` of the front matter and its blank line.
-body() { awk 'front < 2 { if ($0 == "---") front++; next } !started && $0 == "" { started = 1; next } { started = 1; print }' "$1"; }
+# The body is everything after the front matter's closing `---` and the blank line after it,
+# byte for byte: a line-oriented tool such as awk would re-terminate the last line and hide an
+# edit that only removes the final newline. Perl ships with macOS and every Linux.
+body() { perl -0777 -pe 's/\A---\n.*?\n---\n\n//s' "$1"; }
 field() { sed -n "s/^$2: //p" "$1" | head -n 1; }
 sha256() { if command -v shasum >/dev/null; then shasum -a 256; else sha256sum; fi | cut -d' ' -f1; }
 
