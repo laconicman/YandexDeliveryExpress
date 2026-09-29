@@ -53,15 +53,17 @@ rewritten so they survive Markdown:
 
 ```sh
 scripts/upstream-diff.sh              # capture into a temp dir, report; exit 1 if anything changed
-scripts/upstream-diff.sh --write      # also update the cache, then review with `git diff`
+scripts/upstream-diff.sh --write      # also update the cache (same exit status), then `git diff`
 scripts/upstream-diff.sh claim-process IntegrationV2ClaimsJournal   # just these pages
 ```
 
 You need Node 20+ and Google Chrome. The first run installs the pinned dependencies from
 `scripts/upstream/package-lock.json`. Chrome runs headless. If Yandex answers with a captcha,
 run with `UPSTREAM_HEADED=1` and solve it in the window. `UPSTREAM_BROWSER_CHANNEL=chromium`
-or `UPSTREAM_BROWSER_PATH=…` picks another browser. Unchanged pages are listed as
-`unchanged`, and changed pages print a unified diff of the body.
+or `UPSTREAM_BROWSER_PATH=…` picks another browser. Each page is reported as `unchanged`,
+`new`, `moved` (same body, different `Source` URL in `pages.txt`) or `changed` (followed by a
+unified diff of the body). The comparison hashes the cached body as it is on disk, so a hand
+edit to a cached file does not hide an upstream difference.
 
 This is the cheaper sibling of TD-15's "settle by a live call before tagging": before tagging
 a release, re-check here, and re-read the questions below whenever a page changes.

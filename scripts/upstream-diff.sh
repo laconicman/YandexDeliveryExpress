@@ -8,13 +8,16 @@
 #   scripts/upstream-diff.sh [--write] [stem ...]
 #
 #   (no flags)  Capture into a temporary directory and report. Exit 0 when nothing changed,
-#               1 when a page changed or is new, 2 when a capture failed.
-#   --write     Also copy changed and new pages into the cache, for review with `git diff`.
+#               1 when a page changed, moved or is new, 2 when a capture failed.
+#   --write     Also copy changed, moved and new pages into the cache, for review with
+#               `git diff`. The exit status is the same as without it.
 #   stem ...    Only these pages (file stems from Upstream/yandex-docs/pages.txt).
 #
 # Needs Node 20+ and Google Chrome; see Upstream/yandex-docs/README.md for other browsers.
-# The comparison uses the SHA-256 of each page's body recorded in its front matter, so a
-# re-capture of an unchanged page is not a change even though its Captured date differs.
+# A page counts as unchanged when both its body and its Source URL match the cache; the
+# Captured date is ignored, so re-capturing an unchanged page is quiet. Bodies are hashed as
+# they are on disk, so a hand edit to a cached body is caught, not masked by the SHA-256
+# recorded in its front matter.
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -39,7 +42,8 @@ node "$tool/capture.mjs" --pages "$cache/pages.txt" --out "$fresh" "$@" >/dev/nu
 
 # The body is everything after the closing `---` of the front matter and its blank line.
 body() { awk 'front < 2 { if ($0 == "---") front++; next } !started && $0 == "" { started = 1; next } { started = 1; print }' "$1"; }
-body_sha() { sed -n 's/^SHA-256: //p' "$1" | head -n 1; }
+field() { sed -n "s/^$2: //p" "$1" | head -n 1; }
+sha256() { if command -v shasum >/dev/null; then shasum -a 256; else sha256sum; fi | cut -d' ' -f1; }
 
 changed=0
 for captured in "$fresh"/*.md; do
@@ -48,12 +52,21 @@ for captured in "$fresh"/*.md; do
   cached="$cache/$name"
   if [[ ! -f "$cached" ]]; then
     echo "new        $name"
-  elif [[ "$(body_sha "$captured")" == "$(body_sha "$cached")" ]]; then
-    echo "unchanged  $name"
-    continue
   else
-    echo "changed    $name"
-    diff -u -L "cached/$name" -L "captured/$name" <(body "$cached") <(body "$captured") || true
+    cached_sha="$(body "$cached" | sha256)"
+    if [[ "$cached_sha" != "$(field "$cached" SHA-256)" ]]; then
+      echo "note       $name: cached body does not match its recorded SHA-256 (edited by hand?)" >&2
+    fi
+    if [[ "$cached_sha" == "$(body "$captured" | sha256)" ]]; then
+      if [[ "$(field "$cached" Source)" == "$(field "$captured" Source)" ]]; then
+        echo "unchanged  $name"
+        continue
+      fi
+      echo "moved      $name: $(field "$cached" Source) -> $(field "$captured" Source)"
+    else
+      echo "changed    $name"
+      diff -u -L "cached/$name" -L "captured/$name" <(body "$cached") <(body "$captured") || true
+    fi
   fi
   changed=1
   if $write; then cp "$captured" "$cached"; fi
@@ -63,7 +76,11 @@ if (( capture_status != 0 )); then
   echo "Some pages failed to capture; see the messages above." >&2
   exit 2
 fi
-if (( changed )) && ! $write; then
-  echo "Upstream changed. Re-run with --write, review with git diff, and re-read the questions in Upstream/yandex-docs/README.md." >&2
+if (( changed )); then
+  if $write; then
+    echo "Cache updated. Review with git diff, and re-read the questions in Upstream/yandex-docs/README.md." >&2
+  else
+    echo "Upstream changed. Re-run with --write, review with git diff, and re-read the questions in Upstream/yandex-docs/README.md." >&2
+  fi
   exit 1
 fi
