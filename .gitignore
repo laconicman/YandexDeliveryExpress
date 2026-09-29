@@ -25,3 +25,6 @@ Package.resolved
 secrets.*
 *.pem
 *.p12
+
+# Node tooling for the upstream docs cache (scripts/upstream-diff.sh)
+scripts/upstream/node_modules/
