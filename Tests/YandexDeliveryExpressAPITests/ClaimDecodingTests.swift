@@ -124,6 +124,21 @@ struct ClaimDecodingTests {
         #expect(statusCode == 418)
     }
 
+    @Test("The «Super-express» tariff Yandex announced decodes — superexpress_d2d")
+    func decodesSuperexpressTariff() async throws {
+        // The class arrived after the enum was frozen (business-cabinet announcement,
+        // 2026-10 — owner observation 2026-10-02; absent from the public API pages); a closed
+        // enum means the spec is what lets it through — this pins that it now does.
+        let json = Fixture.offersCalculateResponseJSON.replacingOccurrences(
+            of: #""taxi_class": "express""#,
+            with: #""taxi_class": "superexpress_d2d""#
+        )
+        let client = try Client.stubbed(json: json)
+        let response = try await client.calculateOffers(.sample)
+        let offers = try #require(try? response.ok.body.json.offers)
+        #expect(offers.contains { $0.taxiClass == .superexpressD2d })
+    }
+
     @Test("An enum value Yandex might add tomorrow throws rather than decoding silently")
     func rejectsUnknownEnumValue() async throws {
         // Pins a real spec decision: these enums are closed. If this ever needs to pass
