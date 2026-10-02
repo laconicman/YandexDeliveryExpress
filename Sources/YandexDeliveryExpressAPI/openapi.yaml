@@ -2141,12 +2141,17 @@ components:
     # Manually checked
     TaxiClass:
       type: string
-      enum: ["courier", "express", "cargo", "sdd_long"] # "sdd_long" здесь быть не должно
+      # superexpress_d2d («Быстрее») — тариф для заказов, где важны скорость и
+      # сохранность (объявлен Яндексом 2026-10; доступность зависит от аккаунта,
+      # маршрута и текущих условий). sdd_long — принят на веру из документации.
+      enum: ["courier", "express", "cargo", "sdd_long", "superexpress_d2d"]
       description: |
         Класс доставки:
         - courier: Курьер (до 10 кг)
         - express: Экспресс (до 20 кг)
         - cargo: Грузовая (до 300-2000 кг)
+        - superexpress_d2d: «Быстрее» — доставка от двери до двери за минимальное
+          время (тариф для ресторанов и срочных отправлений)
       examples: ["courier", "express", "cargo"]
 
     # Manually checked
