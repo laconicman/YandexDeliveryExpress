@@ -100,6 +100,23 @@
         }
       }
     },
+    "superexpress_d2d" : {
+      "comment" : "Components.Schemas.TaxiClass",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Super-express"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Быстрее"
+          }
+        }
+      }
+    },
     "cancelInfo.free" : {
       "comment" : "Components.Schemas.CancelInfoCancelState",
       "localizations" : {
