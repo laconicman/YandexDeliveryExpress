@@ -626,8 +626,10 @@ create with `client_requirements.taxi_class` and `offer_payload`) would be refus
 - **Discharge:** when a caller outside Russia needs it, model `same_day_data` on
   `ClaimCreateRequest` together with where its slots come from. The reference doesn't
   say whether the slot comes from the offer, a separate intervals call, or the caller.
-  Settle it with a live call before tagging (rule 11), under the
-  <doc:Roadmap> item "Cover the rest of the API".
+  Ask support first (`Upstream/support-questions-2026-10.md`, questions 2, 7 and 8),
+  then settle it with a live call before tagging (rule 11), under the
+  <doc:Roadmap> item "Cover the rest of the API". YDelivery deferred its own same-day
+  flow until then (its YD-37).
 
 ## See Also
 
