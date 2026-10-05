@@ -467,7 +467,7 @@ deliberately, not everywhere.
 | `CargoOption` | both | **Open when convenient.** `thermobag`/`auto_courier` is a marketing list, not a closed set. |
 | `PointVisitStatus` | response only | **Open — highest value for lowest cost.** Descriptive, nobody branches exhaustively, and it rides inside every claim response, so an addition loses the claim. |
 | `Currency` | both | **Open — high risk.** `RUB`/`USD`/`EUR` while the document's own address examples include Беларусь. A `BYN` or `KZT` price would lose every offer and every claim. |
-| `TaxiClass` | both | **Open — high risk.** Yandex adds tariffs; the document already carries `sdd_long` with a note saying it should not be there, which is the tell. |
+| `TaxiClass` | both | **Open — high risk.** Yandex adds tariffs; the document already carries `sdd_long` with a note saying it should not be there, which is the tell. Two arrived since: `superexpress_d2d` (0.3.2) and `sdd_multislot`, the documented same-day class (0.3.3). **Question for a separate decision (2026-10-05, from YDelivery #124):** the app wants to send the chosen offer's spelling verbatim. With the enum closed it can't, so it refuses a class the enum can't spell (`UnsendableTariff`) rather than substituting one. Opening `TaxiClass` would let it send the raw value, and would stop an unknown class from failing every offers response. |
 | `ClaimStatus` | response only | **The hard one.** 27 values, and a new one loses every claim response — the largest blast radius in the document. It is also the enum callers branch on most, so `status.value1` would be felt everywhere. |
 
 - **Cost of leaving it:** each response-side closed enum is a single unannounced Yandex addition

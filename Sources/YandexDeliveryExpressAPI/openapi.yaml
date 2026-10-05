@@ -2146,8 +2146,16 @@ components:
       # Доставки, 2026-10 (наблюдение автора, 2026-10-02); на публичных
       # страницах API (Upstream/yandex-docs) значения пока нет — upstream-diff.sh
       # покажет, когда появится. Доступность зависит от аккаунта, маршрута и
-      # текущих условий. sdd_long — принят на веру из документации.
-      enum: ["courier", "express", "cargo", "sdd_long", "superexpress_d2d"]
+      # текущих условий.
+      # sdd_multislot — единственный «sdd»-класс, который называют страницы API
+      # (Upstream/yandex-docs: списки taxi_class в IntegrationV2ClaimsCreate,
+      # IntegrationV2ClaimsInfo, IntegrationV2ClaimsSearch, IntegrationV2OfferCalculate —
+      # «courier, express, cargo, sdd_multislot»). Доставка в течение дня там же описана
+      # отдельным путём: same_day_data вместо client_requirements (IntegrationV2ClaimsCreate).
+      # sdd_long на этих страницах не встречается ни разу; он в документе с первой
+      # раскладки, без источника — оставлен, потому что удаление из закрытого enum
+      # сломало бы декодирование, если провод его всё же присылает.
+      enum: ["courier", "express", "cargo", "sdd_long", "superexpress_d2d", "sdd_multislot"]
       description: |
         Класс доставки:
         - courier: Курьер (до 10 кг)
@@ -2155,6 +2163,7 @@ components:
         - cargo: Грузовая (до 300-2000 кг)
         - superexpress_d2d: «Быстрее» — доставка от двери до двери за минимальное
           время (тариф для ресторанов и срочных отправлений)
+        - sdd_multislot: доставка в течение дня (заявка передаёт same_day_data)
       examples: ["courier", "express", "cargo"]
 
     # Manually checked

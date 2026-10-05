@@ -200,6 +200,7 @@ extension Components.Schemas.TaxiClass: CustomStringConvertible {
         case .express: String(localized: "express", bundle: #bundle, comment: "Components.Schemas.TaxiClass")
         case .sddLong: String(localized: "sddLong", bundle: #bundle, comment: "Components.Schemas.TaxiClass")
         case .superexpressD2d: String(localized: "superexpress_d2d", bundle: #bundle, comment: "Components.Schemas.TaxiClass")
+        case .sddMultislot: String(localized: "sdd_multislot", bundle: #bundle, comment: "Components.Schemas.TaxiClass")
         }
     }
 }
