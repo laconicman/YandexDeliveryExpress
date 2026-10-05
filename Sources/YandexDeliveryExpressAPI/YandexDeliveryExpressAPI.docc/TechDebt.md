@@ -602,6 +602,35 @@ spends.
   stays `URLSessionTransport()`: the stall was observed from one account under burst,
   not proven to be policy, so tightening is a consumer's call.
 
+## TD-25 — `sdd_multislot` decodes but cannot be ordered — **open**
+
+Since 0.3.3 the enum spells `sdd_multislot`, so offers and claims carrying it decode.
+Ordering one goes down a different path from every other class. The
+[create reference](https://yandex.ru/support/delivery-profile/ru/api/express/openapi/IntegrationV2ClaimsCreate)
+(`Upstream/yandex-docs/IntegrationV2ClaimsCreate.md`) says: for delivery within the day,
+fill `same_day_data`, give every item its size and weight, and **don't** fill
+`client_requirements`. `same_day_data` carries a single `delivery_interval` (`from`,
+`to`), the slot that collects and delivers. The spec still has `# same_day_data:`
+commented out in `ClaimCreateRequest`, so the request half can't be expressed at all.
+The documented refusals are `sdd_client_requirements_forbidden`,
+`sdd_items_without_parameters_forbidden` and `invalid_delivery_interval`.
+
+The same paragraph says **«Тариф доставки в течение дня недоступен в России»**, and
+`SameDayData` repeats «Недоступно в России». So for a Russian account the class should
+never be offered. For one outside Russia, the unified flow (price → pick an offer →
+create with `client_requirements.taxi_class` and `offer_payload`) would be refused with
+`sdd_client_requirements_forbidden`.
+
+- **Cost:** a consumer that shows an `sdd_multislot` offer can't place it. The create
+  it would naturally send is the documented refusal, not a slower success.
+- **Discharge:** when a caller outside Russia needs it, model `same_day_data` on
+  `ClaimCreateRequest` together with where its slots come from. The reference doesn't
+  say whether the slot comes from the offer, a separate intervals call, or the caller.
+  Ask support first (`Upstream/support-questions-2026-10.md`, questions 2, 7 and 8),
+  then settle it with a live call before tagging (rule 11), under the
+  <doc:Roadmap> item "Cover the rest of the API". YDelivery deferred its own same-day
+  flow until then (its YD-37).
+
 ## See Also
 
 - <doc:SpecOwnership>
