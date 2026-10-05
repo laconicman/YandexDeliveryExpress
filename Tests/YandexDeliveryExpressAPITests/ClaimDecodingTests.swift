@@ -139,6 +139,21 @@ struct ClaimDecodingTests {
         #expect(offers.contains { $0.taxiClass == .superexpressD2d })
     }
 
+    @Test("The documented same-day class decodes — sdd_multislot")
+    func decodesSameDayMultislotTariff() async throws {
+        // Every taxi_class list in the cached API pages names it (Upstream/yandex-docs,
+        // e.g. IntegrationV2ClaimsInfo); the closed enum lacked it, so one such value
+        // would have failed the whole response.
+        let json = Fixture.offersCalculateResponseJSON.replacingOccurrences(
+            of: #""taxi_class": "express""#,
+            with: #""taxi_class": "sdd_multislot""#
+        )
+        let client = try Client.stubbed(json: json)
+        let response = try await client.calculateOffers(.sample)
+        let offers = try #require(try? response.ok.body.json.offers)
+        #expect(offers.contains { $0.taxiClass == .sddMultislot })
+    }
+
     @Test("An enum value Yandex might add tomorrow throws rather than decoding silently")
     func rejectsUnknownEnumValue() async throws {
         // Pins a real spec decision: these enums are closed. If this ever needs to pass
